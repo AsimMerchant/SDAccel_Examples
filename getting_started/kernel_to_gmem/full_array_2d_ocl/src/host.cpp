@@ -29,112 +29,139 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "xcl2.hpp"
 #include <vector>
 
-// Define array size 
+// Define array size
 #define TEST_MATRIX_DIM 256
- 
+
 // Define max local buffer size
 #define MAX_MATRIX_DIM 256
 
-void mmult_sw(  std::vector<int,aligned_allocator<int>> &a, 
-                std::vector<int,aligned_allocator<int>> &b, 
-                std::vector<int,aligned_allocator<int>> &c, int size)
-{
-  for (int row = 0; row < size; row++) {
-    for (int col = 0; col < size; col++) {
-      int result = 0;
-      for (int k = 0; k < size; k++) {
-        result += a[row * size + k] * b[k * size + col];
-      }
-      c[row * size + col] = result;
+void mmult_sw(std::vector<int, aligned_allocator<int>> &a,
+              std::vector<int, aligned_allocator<int>> &b,
+              std::vector<int, aligned_allocator<int>> &c,
+              int size) {
+    for (int row = 0; row < size; row++) {
+        for (int col = 0; col < size; col++) {
+            int result = 0;
+            for (int k = 0; k < size; k++) {
+                result += a[row * size + k] * b[k * size + col];
+            }
+            c[row * size + col] = result;
+        }
     }
-  }
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char **argv) {
+    if (argc != 2) {
+        std::cout << "Usage: " << argv[0] << " <XCLBIN File>" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    std::string binaryFile = argv[1];
+
     int test_matrix_dim = TEST_MATRIX_DIM;
     const char *xcl_emu = getenv("XCL_EMULATION_MODE");
-    if(xcl_emu && !strcmp(xcl_emu, "hw_emu")){
+    if (xcl_emu && !strcmp(xcl_emu, "hw_emu")) {
         test_matrix_dim = 16;
-        std::cout << "Data Size Reduced to  "<< test_matrix_dim << " for Hardware Emulation" << std::endl;
+        std::cout << "Data Size Reduced to  " << test_matrix_dim
+                  << " for Hardware Emulation" << std::endl;
     }
-    
+
     int dim = test_matrix_dim;
     int matrix_size = dim * dim;
-    
+
     if (dim > MAX_MATRIX_DIM) {
-        std::cout << "Size is bigger than internal buffer size, please use a size smaller than 256!" << std::endl;
+        std::cout << "Size is bigger than internal buffer size, please use a "
+                     "size smaller than 256!"
+                  << std::endl;
         return EXIT_FAILURE;
     }
     //Allocate Memory in Host Memory
     size_t matrix_size_in_bytes = sizeof(int) * matrix_size;
-    std::vector<int,aligned_allocator<int>> source_input_a   (matrix_size);
-    std::vector<int,aligned_allocator<int>> source_input_b   (matrix_size);
-    std::vector<int,aligned_allocator<int>> source_hw_results(matrix_size);
-    std::vector<int,aligned_allocator<int>> source_sw_results(matrix_size);
+    std::vector<int, aligned_allocator<int>> source_input_a(matrix_size);
+    std::vector<int, aligned_allocator<int>> source_input_b(matrix_size);
+    std::vector<int, aligned_allocator<int>> source_hw_results(matrix_size);
+    std::vector<int, aligned_allocator<int>> source_sw_results(matrix_size);
+    cl_int err;
 
-    // Create the test data and Software Result 
-    for(int i = 0 ; i < matrix_size ; i++){
+    // Create the test data and Software Result
+    for (int i = 0; i < matrix_size; i++) {
         source_input_a[i] = i;
         source_input_b[i] = i;
         source_hw_results[i] = 0;
     }
     mmult_sw(source_input_a, source_input_b, source_sw_results, dim);
 
-//OPENCL HOST CODE AREA START
-    std::vector<cl::Device> devices = xcl::get_xil_devices();
-    cl::Device device = devices[0];
+    //OPENCL HOST CODE AREA START
+    auto devices = xcl::get_xil_devices();
+    auto device = devices[0];
 
-    cl::Context context(device);
-    cl::CommandQueue q(context, device, CL_QUEUE_PROFILING_ENABLE);
-    std::string device_name = device.getInfo<CL_DEVICE_NAME>(); 
+    OCL_CHECK(err, cl::Context context(device, NULL, NULL, NULL, &err));
+    OCL_CHECK(
+        err,
+        cl::CommandQueue q(context, device, CL_QUEUE_PROFILING_ENABLE, &err));
+    OCL_CHECK(err,
+              std::string device_name = device.getInfo<CL_DEVICE_NAME>(&err));
 
-    std::string binaryFile = xcl::find_binary_file(device_name,"mmult");
-    cl::Program::Binaries bins = xcl::import_binary_file(binaryFile);
+   auto fileBuf = xcl::read_binary_file(binaryFile);
+   cl::Program::Binaries bins{{fileBuf.data(), fileBuf.size()}};
     devices.resize(1);
-    cl::Program program(context, devices, bins);
-    cl::Kernel kernel(program,"mmult");
+    OCL_CHECK(err, cl::Program program(context, devices, bins, NULL, &err));
+    OCL_CHECK(err, cl::Kernel krnl_mmult(program, "mmult", &err));
 
     //Allocate Buffer in Global Memory
-    cl::Buffer buffer_a(context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,  
-            matrix_size_in_bytes,source_input_a.data());
-    cl::Buffer buffer_b(context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,  
-            matrix_size_in_bytes,source_input_b.data());
-    cl::Buffer buffer_c(context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY, 
-            matrix_size_in_bytes, source_hw_results.data());
+    OCL_CHECK(err,
+              cl::Buffer buffer_a(context,
+                                  CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                                  matrix_size_in_bytes,
+                                  source_input_a.data(),
+                                  &err));
+    OCL_CHECK(err,
+              cl::Buffer buffer_b(context,
+                                  CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                                  matrix_size_in_bytes,
+                                  source_input_b.data(),
+                                  &err));
+    OCL_CHECK(err,
+              cl::Buffer buffer_c(context,
+                                  CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+                                  matrix_size_in_bytes,
+                                  source_hw_results.data(),
+                                  &err));
 
-    std::vector<cl::Memory> writeBufVec;
-    writeBufVec.push_back(buffer_a);
-    writeBufVec.push_back(buffer_b);
+    OCL_CHECK(err, err = krnl_mmult.setArg(0, buffer_a));
+    OCL_CHECK(err, err = krnl_mmult.setArg(1, buffer_b));
+    OCL_CHECK(err, err = krnl_mmult.setArg(2, buffer_c));
+    OCL_CHECK(err, err = krnl_mmult.setArg(3, dim));
+
     //Migrate  input data to device global memory
-    q.enqueueMigrateMemObjects(writeBufVec,0/* 0 means from host*/);
-
-    auto krnl_mmult 
-        = cl::KernelFunctor<cl::Buffer&,cl::Buffer&,cl::Buffer&,int>(kernel);
+    OCL_CHECK(err,
+              err = q.enqueueMigrateMemObjects({buffer_a, buffer_b},
+                                               0 /* 0 means from host*/));
 
     //Launch the Kernel
-    krnl_mmult(cl::EnqueueArgs(q,cl::NDRange(1,1,1), cl::NDRange(1,1,1)), 
-            buffer_a,buffer_b,buffer_c, dim);
+    OCL_CHECK(err, err = q.enqueueTask(krnl_mmult));
 
-    std::vector<cl::Memory> readBufVec;
-    readBufVec.push_back(buffer_c);
     //Copy Result from Device Global Memory to Host Local Memory
-    q.enqueueMigrateMemObjects(readBufVec,CL_MIGRATE_MEM_OBJECT_HOST);
-    q.finish();
-//OPENCL HOST CODE AREA END
-    
+    OCL_CHECK(err,
+              err = q.enqueueMigrateMemObjects({buffer_c},
+                                               CL_MIGRATE_MEM_OBJECT_HOST));
+    OCL_CHECK(err, err = q.finish());
+    //OPENCL HOST CODE AREA END
+
     // Compare the results of the Device to the simulation
     int match = 0;
-    for (int i = 0 ; i < matrix_size ; i++){
-        if (source_hw_results[i] != source_sw_results[i]){
+    for (int i = 0; i < matrix_size; i++) {
+        if (source_hw_results[i] != source_sw_results[i]) {
             std::cout << "Error: Result mismatch" << std::endl;
             std::cout << "i = " << i << " CPU result = " << source_sw_results[i]
-                << " Device result = " << source_hw_results[i] << std::endl;
+                      << " Device result = " << source_hw_results[i]
+                      << std::endl;
             match = 1;
             break;
         }
     }
 
-    std::cout << "TEST " << (match ? "FAILED" : "PASSED") << std::endl; 
-    return (match ? EXIT_FAILURE :  EXIT_SUCCESS);
+
+    std::cout << "TEST " << (match ? "FAILED" : "PASSED") << std::endl;
+    return (match ? EXIT_FAILURE : EXIT_SUCCESS);
 }

@@ -12,8 +12,8 @@
     "libs": [
         "xcl2"
     ],
-    "em_cmd": "./host",
-    "hw_cmd": "../../../utility/nimbix/nimbix-run.py -- ./host",
+    "host_exe": "host",
+    "cmd_args": "BUILD/adder.xclbin",
     "containers" : [
         {
             "name" : "adder",
@@ -30,13 +30,6 @@
         {
             "group": "Xilinx",
             "url" : "http://www.xilinx.com"
-        }
-    ],
-    "revision" : [
-        {
-            "date" : "FEB2018",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
         }
     ]
 }

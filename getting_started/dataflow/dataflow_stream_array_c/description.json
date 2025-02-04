@@ -12,8 +12,8 @@
     "libs": [
         "xcl2"
     ],
-    "em_cmd": "./host",
-    "hw_cmd": "../../../utility/nimbix/nimbix-run.py -- ./host",
+    "host_exe": "host",
+    "cmd_args": "BUILD/N_stage_Adders.xclbin",
     "containers": [
         {
             "name": "N_stage_Adders",

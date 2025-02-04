@@ -9,9 +9,9 @@
     "os": [
         "Linux"
     ],
-    "cmd_args": "PROJECT/data/car_128x128.bmp",
-    "em_cmd": "./host ./data/car_128x128.bmp",
-    "hw_cmd": "../../../utility/nimbix/nimbix-run.py -- ./host ./data/car_128x128.bmp",
+    "host_exe": "host",
+    "cmd_args": "BUILD/sketch_GOOD.xclbin BUILD/sketch_BAD.xclbin PROJECT/data/car_128x128.bmp",
+    "output_files": "output.bmp",        
     "libs": [
         "xcl2", 
         "bitmap"
@@ -21,7 +21,7 @@
             "name": "sketch_GOOD", 
             "accelerators" : [
                 {
-                    "name": "process_image",
+                    "name": "sketch_GOOD",
                     "clflags" : "--xp param:compiler.xclDataflowFifoDepth=16",
                     "location": "src/sketch.cl"
                 }
@@ -31,24 +31,23 @@
             "name": "sketch_BAD", 
             "accelerators" : [
                 {
-                    "name": "process_image", 
+                    "name": "sketch_BAD", 
                     "location": "src/sketch_bad.cl"
                 }
             ]
         }
     ],
- 
     "contributors" : [
         {
             "group": "Xilinx",
             "url" : "http://www.xilinx.com"
         }
     ],
-    "revision" : [
+    "testinfo": {
+        "level_up": [
         {
-            "date" : "DEC2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
+            "hw": "1"
         }
-    ]
+        ]
+    }
 }

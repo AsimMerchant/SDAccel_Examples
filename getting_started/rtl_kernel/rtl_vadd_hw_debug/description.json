@@ -13,13 +13,26 @@
     "os": [
         "Linux"
     ],
-    "boards":["xilinx_kcu1500_dynamic_5_0", "xilinx_vcu1525_dynamic_5_0"],
+    "config_make": "config.mk",
+    "output_files": "tmp_kernel_pack* packaged_kernel*",
+    "host_srcs": "src/host.cpp",
+    "cmd_args": "BUILD/vadd.xclbin",
     "targets": ["hw", "hw_emu"],
     "xcl": true,
-    "em_cmd" : "./host",
-    "hw_cmd" : "./host",
+    "host_exe": "host",
     "libs" : [
-        "xcl"
+        "xcl2"
+    ],
+    "containers": [
+	{
+	   "name": "vadd",
+	   "accelerators": [
+		{
+		    "name": "vadd",
+		    "kernel_type": "RTL"
+		}
+	    ]
+	}
     ],
     "contributors" : [
         {

@@ -46,248 +46,287 @@ Description:
 #include "defns.h"
 
 // Software solution of image sketch operation
-void software_sketch(int *image, int *output, int width, int height)
-{
+void software_sketch(int *image, int *output, int width, int height) {
     printf("Software Solution Launched.... \n");
     int temp_res[MAX_WIDTH * MAX_HEIGHT]; //Hold boost and sketch outputs
     int med_out[MAX_WIDTH * MAX_HEIGHT];
-    
+
     //Hold the window for processing
     uint rgbWindow[SIZE];
-    
+
     // Holds the rows/lines from which the data is to be picked
     int lineAddr[WINDOW];
-    
-    
+
     // Boost Stage
     // Do boost filter on the image and write the output to temp_res
-    for(int row = 0; row < height; row++){
-        for(int col = 0; col < width; col++){
-            
+    for (int row = 0; row < height; row++) {
+        for (int col = 0; col < width; col++) {
+
             // Get pixels within 3x3 aperture
-            
+
             lineAddr[0] = row - 1;
             lineAddr[1] = row;
             lineAddr[2] = row + 1;
-            
+
             // Handle Boundary Conditions
-            if(row == 0){
+            if (row == 0) {
                 lineAddr[0] = 0;
-            }
-            else if(row == height-1) {
-                lineAddr[0] = row-2;
-                lineAddr[1] = row-1;
+            } else if (row == height - 1) {
+                lineAddr[0] = row - 2;
+                lineAddr[1] = row - 1;
                 lineAddr[2] = row;
             }
-            
+
             // The fillWindow loop is unrolled automatically because it is
             // inlined into a loop that is pipelined.
-            for(int i = 0; i < WINDOW; i++){
-                rgbWindow[i*WINDOW + 0] = (col == 0)? image[lineAddr[i]*width + col] : image[lineAddr[i]*width + col-1];
-                rgbWindow[i*WINDOW + 1] = image[lineAddr[i]*width + col];
-                rgbWindow[i*WINDOW + 2] = (col == width-1)? image[lineAddr[i]*width + col] : image[lineAddr[i]*width + col+1];
+            for (int i = 0; i < WINDOW; i++) {
+                rgbWindow[i * WINDOW + 0] =
+                    (col == 0) ? image[lineAddr[i] * width + col]
+                               : image[lineAddr[i] * width + col - 1];
+                rgbWindow[i * WINDOW + 1] = image[lineAddr[i] * width + col];
+                rgbWindow[i * WINDOW + 2] =
+                    (col == width - 1) ? image[lineAddr[i] * width + col]
+                                       : image[lineAddr[i] * width + col + 1];
             }
-            
+
             // Boost Value of the 3x3 rgbWindow
-            // getBoost() is defined in kernels/boost_helper.h   
-            temp_res[row*width + col] = getBoost(rgbWindow);
+            // getBoost() is defined in kernels/boost_helper.h
+            temp_res[row * width + col] = getBoost(rgbWindow);
         }
     }
-    
+
     // Median Stage
     // Do median filter on the image and write output to med_out
-    for(int row = 0; row < height; row++){
-        for(int col = 0; col < width; col++){
-            
+    for (int row = 0; row < height; row++) {
+        for (int col = 0; col < width; col++) {
+
             // Get pixels within 3x3 aperture
-            
+
             lineAddr[0] = row - 1;
             lineAddr[1] = row;
             lineAddr[2] = row + 1;
-            
+
             // Handle Boundary Conditions
-            if(row == 0){
+            if (row == 0) {
                 lineAddr[0] = 0;
-            }
-            else if(row == height-1) {
-                lineAddr[0] = row-2;
-                lineAddr[1] = row-1;
+            } else if (row == height - 1) {
+                lineAddr[0] = row - 2;
+                lineAddr[1] = row - 1;
                 lineAddr[2] = row;
             }
-            
+
             // The fillWindow loop is unrolled automatically because it is
             // inlined into a loop that is pipelined.
-            for(int i = 0; i < WINDOW; i++){
-                rgbWindow[i*WINDOW + 0] = (col == 0)? image[lineAddr[i]*width + col] : image[lineAddr[i]*width + col-1];
-                rgbWindow[i*WINDOW + 1] = image[lineAddr[i]*width + col];
-                rgbWindow[i*WINDOW + 2] = (col == width-1)? image[lineAddr[i]*width + col] : image[lineAddr[i]*width + col+1];
+            for (int i = 0; i < WINDOW; i++) {
+                rgbWindow[i * WINDOW + 0] =
+                    (col == 0) ? image[lineAddr[i] * width + col]
+                               : image[lineAddr[i] * width + col - 1];
+                rgbWindow[i * WINDOW + 1] = image[lineAddr[i] * width + col];
+                rgbWindow[i * WINDOW + 2] =
+                    (col == width - 1) ? image[lineAddr[i] * width + col]
+                                       : image[lineAddr[i] * width + col + 1];
             }
-            
+
             // Median of the 3x3 rgbWindow
             // getMedian() is defined in kernels/median_helper.h
-            med_out[row*width + col] = getMedian(rgbWindow);                     
+            med_out[row * width + col] = getMedian(rgbWindow);
         }
     }
-    
+
     // Sketch Stage
     // Do sketch operation on boost and median outputs.
     // Boost outputs are present in temp_res
     // Write the result back into temp_res.
-    for(int i = 0; i < width*height; i++) {
+    for (int i = 0; i < width * height; i++) {
         // Sketch operation on the current pixel of boost and median outputs
         // Boost operation output is in temp_res and
         // Median operation output is in med_out.
         // getSketch() is defined in kernels/sketch_helper.h
-        temp_res[i] = getSketch(temp_res[i], med_out[i]);           
-
+        temp_res[i] = getSketch(temp_res[i], med_out[i]);
     }
-    
-    // Flips the Image by Reading Output Results from Sketch Output 
+
+    // Flips the Image by Reading Output Results from Sketch Output
     // Burst write back results onto output
-    for(int row = 0 ; row < height ; row++){
+    for (int row = 0; row < height; row++) {
         // Reads from temp_res and flip the row and burst write output
-        for(int col = 0; col < width; col++){
-            output[row*width + col] = temp_res[row*width + width-col-1];
+        for (int col = 0; col < width; col++) {
+            output[row * width + col] = temp_res[row * width + width - col - 1];
         }
     }
-}//end of software
+} //end of software
 
-void run_opencl_sketch
- (
-   std::vector<cl::Device> &devices,
-   cl::CommandQueue &q,
-   cl::Context &context,
-   std::string &device_name,
-   bool good,
-   std::vector<int, aligned_allocator<int>> &hw_inImage,
-   std::vector<int, aligned_allocator<int>> &hw_outImage,
-   int size,
-   int width,
-   int height
- )
- {
-    std::string binaryFile;
+void run_opencl_sketch(std::vector<cl::Device> &devices,
+                       cl::CommandQueue &q,
+                       cl::Context &context,
+                       std::string &device_name,
+                       std::string &binaryFile,
+                       bool good,
+                       std::vector<int, aligned_allocator<int>> &hw_inImage,
+                       std::vector<int, aligned_allocator<int>> &hw_outImage,
+                       int size,
+                       int width,
+                       int height) {
+    cl_int err;
     size_t image_size_bytes = sizeof(int) * size;
 
-    if(good)
-       binaryFile = xcl::find_binary_file(device_name,"sketch_GOOD");
-    else
-       binaryFile = xcl::find_binary_file(device_name,"sketch_BAD");
-
-
-    cl::Program::Binaries bins = xcl::import_binary_file(binaryFile);
+   auto fileBuf = xcl::read_binary_file(binaryFile);
+   cl::Program::Binaries bins{{fileBuf.data(), fileBuf.size()}};
     devices.resize(1);
-    cl::Program program(context, devices, bins);
-    cl::Kernel krnl_process_image(program,"process_image");
+    OCL_CHECK(err, cl::Program program(context, devices, bins, NULL, &err));
+    cl::Kernel krnl_process_image;
+    if (good) {
+        OCL_CHECK(
+            err, krnl_process_image = cl::Kernel(program, "sketch_GOOD", &err));
+    } else {
+        OCL_CHECK(err,
+                  krnl_process_image = cl::Kernel(program, "sketch_BAD", &err));
+    }
 
     //Allocate Buffer in Global Memory
-    std::vector<cl::Memory> inBufVec, outBufVec;
-    cl::Buffer buffer_input (context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                            image_size_bytes,hw_inImage.data());
- 
-    cl::Buffer buffer_output(context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-            image_size_bytes,hw_outImage.data());
-    inBufVec.push_back(buffer_input);
-    outBufVec.push_back(buffer_output);
+    OCL_CHECK(err,
+              cl::Buffer buffer_input(context,
+                                      CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                                      image_size_bytes,
+                                      hw_inImage.data(),
+                                      &err));
+
+    OCL_CHECK(err,
+              cl::Buffer buffer_output(context,
+                                       CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+                                       image_size_bytes,
+                                       hw_outImage.data(),
+                                       &err));
 
     std::cout << "Writing input image to buffer...\n";
 
-    //Copy input data to device global memory
-    q.enqueueMigrateMemObjects(inBufVec,0/* 0 means from host*/);
-    
     int narg = 0;
 
     //Set the Kernel Arguments
-    krnl_process_image.setArg(narg++, buffer_input);
-    krnl_process_image.setArg(narg++, buffer_output);
-    krnl_process_image.setArg(narg++, width);
-    krnl_process_image.setArg(narg++, height);
-    
+    OCL_CHECK(err, err = krnl_process_image.setArg(narg++, buffer_input));
+    OCL_CHECK(err, err = krnl_process_image.setArg(narg++, buffer_output));
+    OCL_CHECK(err, err = krnl_process_image.setArg(narg++, width));
+    OCL_CHECK(err, err = krnl_process_image.setArg(narg++, height));
+
+    //Copy input data to device global memory
+    OCL_CHECK(err,
+              err = q.enqueueMigrateMemObjects({buffer_input},
+                                               0 /* 0 means from host*/));
+
     std::cout << "Launching Kernels...." << std::endl;
 
     //Launch the Kernel
-    q.enqueueTask(krnl_process_image);
+    OCL_CHECK(err, err = q.enqueueTask(krnl_process_image));
     std::cout << "Kernel Execution Finished...." << std::endl;
-    
+
     //Copy Result from Device Global Memory to Host Local Memory
-    q.enqueueMigrateMemObjects(outBufVec,CL_MIGRATE_MEM_OBJECT_HOST);
-    q.finish();
+    OCL_CHECK(err,
+              err = q.enqueueMigrateMemObjects({buffer_output},
+                                               CL_MIGRATE_MEM_OBJECT_HOST));
+    OCL_CHECK(err, err = q.finish());
+}
 
-  }
-
-
-int main(int argc, char** argv)
-{
-    if (argc != 2)
-    {
-        std::cout << "Usage: " << argv[0] << " <input bitmap>" << std::endl;
-        return EXIT_FAILURE ;
+int main(int argc, char **argv) {
+    if (argc != 4) {
+        std::cout << "Usage: " << argv[0] << " <GOOD XCLBIN File>"
+                  << " <BAD XCLBIN File>"
+                  << " <input bitmap>" << std::endl;
+        return EXIT_FAILURE;
     }
-    const char* bitmapFilename = argv[1];
 
-    //Read the bitmap file into memory and allocate memory 
+    const char *bitmapFilename = argv[3];
+
+    //Read the bitmap file into memory and allocate memory
     std::cout << "Reading input image...\n";
 
     BitmapInterface image(bitmapFilename);
 
     bool result = image.readBitmapFile();
-    if(!result) {
-        std::cout << "Error reading bitmap file : " << bitmapFilename << std::endl;
+    if (!result) {
+        std::cout << "Error reading bitmap file : " << bitmapFilename
+                  << std::endl;
         return -1;
     }
 
-    int width  = image.getWidth();
+    int width = image.getWidth();
     int height = image.getHeight();
-    
-    if(width > MAX_WIDTH || height > MAX_HEIGHT) {
+
+    if (width > MAX_WIDTH || height > MAX_HEIGHT) {
         std::cout << "Error file larger than max dimension" << std::endl;
-        std::cout << "Current File of size : " << height << "x" << width << std::endl;
-        std::cout << "Max Supported size is " << MAX_HEIGHT << "x"<< MAX_WIDTH << std::endl;
+        std::cout << "Current File of size : " << height << "x" << width
+                  << std::endl;
+        std::cout << "Max Supported size is " << MAX_HEIGHT << "x" << MAX_WIDTH
+                  << std::endl;
         return -1;
     }
 
     size_t image_size_bytes = sizeof(int) * image.numPixels();
-    std::vector<int,aligned_allocator<int>> hw_inImage(image.numPixels());
-    std::vector<int,aligned_allocator<int>> hw_outImage(image.numPixels());
-    std::vector<int,aligned_allocator<int>> sw_outImage(image.numPixels());
+    std::vector<int, aligned_allocator<int>> hw_inImage(image.numPixels());
+    std::vector<int, aligned_allocator<int>> hw_outImage(image.numPixels());
+    std::vector<int, aligned_allocator<int>> sw_outImage(image.numPixels());
 
     //Copying image host buffer
-    memcpy(hw_inImage.data(),image.bitmap(),image_size_bytes);
+    memcpy(hw_inImage.data(), image.bitmap(), image_size_bytes);
 
-    int size = image.numPixels();  
+    int size = image.numPixels();
 
-//OPENCL HOST CODE AREA START
+    //OPENCL HOST CODE AREA START
+    cl_int err;
 
-    //Create Program and Kernels. 
-    std::vector<cl::Device> devices = xcl::get_xil_devices();
-    cl::Device device = devices[0];
+    //Create Program and Kernels.
+    auto devices = xcl::get_xil_devices();
+    auto device = devices[0];
 
-    cl::Context context(device);
-    cl::CommandQueue q(context, device, CL_QUEUE_PROFILING_ENABLE);
-    std::string device_name = device.getInfo<CL_DEVICE_NAME>(); 
+    OCL_CHECK(err, cl::Context context(device, NULL, NULL, NULL, &err));
+    OCL_CHECK(
+        err,
+        cl::CommandQueue q(context, device, CL_QUEUE_PROFILING_ENABLE, &err));
+    auto device_name = device.getInfo<CL_DEVICE_NAME>();
+    std::string binaryFile;
 
-    run_opencl_sketch(devices,q,context,device_name,true,hw_inImage,hw_outImage,size,width,height);
-    run_opencl_sketch(devices,q,context,device_name,false,hw_inImage,hw_outImage,size,width,height);
+    binaryFile = argv[1];
+    run_opencl_sketch(devices,
+                      q,
+                      context,
+                      device_name,
+                      binaryFile,
+                      true,
+                      hw_inImage,
+                      hw_outImage,
+                      size,
+                      width,
+                      height);
+    binaryFile = argv[2];
+    run_opencl_sketch(devices,
+                      q,
+                      context,
+                      device_name,
+                      binaryFile,
+                      false,
+                      hw_inImage,
+                      hw_outImage,
+                      size,
+                      width,
+                      height);
 
-//OPENCL HOST CODE AREA END
+    //OPENCL HOST CODE AREA END
 
-
-    // Software sketch function 
+    // Software sketch function
     software_sketch(image.bitmap(), sw_outImage.data(), width, height);
 
     // Compare software with hardware results
     int match = 0;
-    for(int i = 0; i < size; i++){
-        if(sw_outImage[i] != hw_outImage[i]){
+    for (int i = 0; i < size; i++) {
+        if (sw_outImage[i] != hw_outImage[i]) {
             std::cout << "Error: Result mismatch" << std::endl;
-            std::cout << "i = " << i << " CPU result = " << sw_outImage[i] << " Device result = " << hw_outImage[i] << std::endl;
+            std::cout << "i = " << i << " CPU result = " << sw_outImage[i]
+                      << " Device result = " << hw_outImage[i] << std::endl;
             match = 1;
             break;
-        } 
+        }
     }
     //Write the final image to disk
     image.writeBitmapFile(hw_outImage.data());
- 
-    std::cout << "TEST " << (match ? "FAILED" : "PASSED") << std::endl; 
-    return (match ? EXIT_FAILURE :  EXIT_SUCCESS);
+
+    std::cout << "TEST " << (match ? "FAILED" : "PASSED") << std::endl;
+    return (match ? EXIT_FAILURE : EXIT_SUCCESS);
 }

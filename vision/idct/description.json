@@ -7,17 +7,26 @@
     "os": [
         "Linux"
     ],
-    "cmd_args" : "BUILD/default.xclbin",
-    "em_cmd" : "./idct",
-    "hw_cmd" : "../../../utility/nimbix/nimbix-run.py -- ./idct",
+   "nboard": [
+        "xilinx_u50_xdma",
+        "xilinx_vcu1525_dynamic", 
+        "xilinx_aws-vu9p-f1-04261818",
+        "xilinx:u50:xdma", 
+        "xilinx:vcu1525:dynamic", 
+        "xilinx:aws-vu9p-f1-04261818:dynamic"
+    ],  
+   "host_exe": "idct",
+    "host_srcs": "src/idct.cpp",
+    "cmd_args" : "BUILD/krnl_idct.xclbin",
     "containers": [
         {
             "name": "krnl_idct", 
-            "ldclflags": "  --sp krnl_idct_1.m_axi_gmem0:bank0 --sp krnl_idct_1.m_axi_gmem1:bank0 --sp krnl_idct_1.m_axi_gmem2:bank1",
+            "ldclflags": "--sp krnl_idct_1.m_axi_gmem0:DDR[0] --sp krnl_idct_1.m_axi_gmem1:DDR[0] --sp krnl_idct_1.m_axi_gmem2:DDR[1] --kernel_frequency 250",
             "accelerators": [
                 { 
                     "name": "krnl_idct", 
-                    "location": "src/krnl_idct.cpp"
+                    "location": "src/krnl_idct.cpp",
+	            "clflags" : "--xp prop:solution.hls_pre_tcl=PROJECT/src/hls_config.tcl"
                 }
             ]
         }
@@ -27,13 +36,5 @@
             "group": "Xilinx",
             "url" : "http://www.xilinx.com"
         }
-    ],
-    "revision" : [
-        {
-            "date" : "JUN2017",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
-        }
     ]
-
 }

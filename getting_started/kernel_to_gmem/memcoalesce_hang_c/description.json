@@ -9,19 +9,18 @@
     "os": [
         "Linux"
     ],
-    "cmd_args" : "kernel_GOOD",
+    "cmd_args" : "BUILD/kernel_GOOD.xclbin",
     "libs": [
         "xcl2"
     ],
-    "em_cmd": "./host kernel_GOOD",
-    "hw_cmd": "../../../utility/nimbix/nimbix-run.py -- ./host ./kernel_GOOD",
+    "host_exe": "host",
     "containers": [
         {
             "name": "kernel_GOOD", 
             "accelerators": [
                 {
                     "name": "dummy_op",
-                    "clflags" : "-DDEADLOCK=0", 
+                    "clflags" : "-DDEADLOCK=0",                    
                     "location": "src/kernel.cpp"
                 }
             ]
@@ -33,11 +32,11 @@
             "url" : "http://www.xilinx.com"
         }
     ],
-    "revision" : [
+    "testinfo": {
+        "level_up": [
         {
-            "date" : "MAY2017",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
+            "hw": "1"
         }
-    ]
+        ]
+    }
 }

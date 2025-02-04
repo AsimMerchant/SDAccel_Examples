@@ -30,87 +30,108 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "xcl2.hpp"
 #include <vector>
 
-#define DATA_SIZE   4096
-#define INCR_VALUE  4
-#define STAGES      4
+#define DATA_SIZE 4096
+#define INCR_VALUE 4
+#define STAGES 4
 
-int main(int argc, char** argv)
-{
+int main(int argc, char **argv) {
+    if (argc != 2) {
+        std::cout << "Usage: " << argv[0] << " <XCLBIN File>" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    auto binaryFile = argv[1];
+
     int size = DATA_SIZE;
     int incr = INCR_VALUE;
+    cl_int err;
 
     //Allocate Memory in Host Memory
     size_t vector_size_bytes = sizeof(int) * DATA_SIZE;
-    std::vector<int,aligned_allocator<int>> source_input     (DATA_SIZE);
-    std::vector<int,aligned_allocator<int>> source_hw_results(DATA_SIZE);
-    std::vector<int,aligned_allocator<int>> source_sw_results(DATA_SIZE);
+    std::vector<int, aligned_allocator<int>> source_input(DATA_SIZE);
+    std::vector<int, aligned_allocator<int>> source_hw_results(DATA_SIZE);
+    std::vector<int, aligned_allocator<int>> source_sw_results(DATA_SIZE);
 
-    for(int i = 0 ; i < DATA_SIZE ; i++){
+    for (int i = 0; i < DATA_SIZE; i++) {
         source_input[i] = i;
-        source_sw_results[i] = i; //setting the same value of input 
+        source_sw_results[i] = i; //setting the same value of input
         source_hw_results[i] = 0;
     }
     //Calculating the Golden Value
-    for(int i = 0 ; i < STAGES ; i++){
-        for (int j = 0 ; j < DATA_SIZE ; j++){
-            source_sw_results[j] =  source_sw_results[j] + incr;
+    for (int i = 0; i < STAGES; i++) {
+        for (int j = 0; j < DATA_SIZE; j++) {
+            source_sw_results[j] = source_sw_results[j] + incr;
         }
     }
 
-//OPENCL HOST CODE AREA START
-    std::vector<cl::Device> devices = xcl::get_xil_devices();
-    cl::Device device = devices[0];
+    //OPENCL HOST CODE AREA START
+    auto devices = xcl::get_xil_devices();
+    auto device = devices[0];
 
-    cl::Context context(device);
-    cl::CommandQueue q(context, device, CL_QUEUE_PROFILING_ENABLE);
-    std::string device_name = device.getInfo<CL_DEVICE_NAME>(); 
+    OCL_CHECK(err, cl::Context context(device, NULL, NULL, NULL, &err));
+    OCL_CHECK(
+        err,
+        cl::CommandQueue q(context, device, CL_QUEUE_PROFILING_ENABLE, &err));
+    OCL_CHECK(err,
+              std::string device_name = device.getInfo<CL_DEVICE_NAME>(&err));
 
     //Create Program and Kernel
-    std::string binaryFile = xcl::find_binary_file(device_name,"N_stage_Adders");
-    cl::Program::Binaries bins = xcl::import_binary_file(binaryFile);
+   auto fileBuf = xcl::read_binary_file(binaryFile);
+   cl::Program::Binaries bins{{fileBuf.data(), fileBuf.size()}};
     devices.resize(1);
-    cl::Program program(context, devices, bins);
-    cl::Kernel krnl_adders(program,"N_stage_Adders");
+    OCL_CHECK(err, cl::Program program(context, devices, bins, NULL, &err));
+    OCL_CHECK(err, cl::Kernel krnl_adders(program, "N_stage_Adders", &err));
 
     //Allocate Buffer in Global Memory
-    std::vector<cl::Memory> inBufVec, outBufVec;
-    cl::Buffer buffer_input (context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, 
-            vector_size_bytes, source_input.data());
-    cl::Buffer buffer_output(context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-            vector_size_bytes, source_hw_results.data());
-    inBufVec.push_back(buffer_input);
-    outBufVec.push_back(buffer_output);
-
-    //Copy input data to device global memory
-    q.enqueueMigrateMemObjects(inBufVec,0/* 0 means from host*/);
+    OCL_CHECK(err,
+              cl::Buffer buffer_input(context,
+                                      CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                                      vector_size_bytes,
+                                      source_input.data(),
+                                      &err));
+    OCL_CHECK(err,
+              cl::Buffer buffer_output(context,
+                                       CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+                                       vector_size_bytes,
+                                       source_hw_results.data(),
+                                       &err));
 
     //Set the Kernel Arguments
-    int narg=0;
-    krnl_adders.setArg(narg++,buffer_input);
-    krnl_adders.setArg(narg++,buffer_output);
-    krnl_adders.setArg(narg++,incr);
-    krnl_adders.setArg(narg++,size);
+    int narg = 0;
+    OCL_CHECK(err, err = krnl_adders.setArg(narg++, buffer_input));
+    OCL_CHECK(err, err = krnl_adders.setArg(narg++, buffer_output));
+    OCL_CHECK(err, err = krnl_adders.setArg(narg++, incr));
+    OCL_CHECK(err, err = krnl_adders.setArg(narg++, size));
+
+    //Copy input data to device global memory
+    OCL_CHECK(err,
+              err = q.enqueueMigrateMemObjects({buffer_input},
+                                               0 /* 0 means from host*/));
 
     //Launch the Kernel
-    q.enqueueTask(krnl_adders);
+    OCL_CHECK(err, err = q.enqueueTask(krnl_adders));
 
     //Copy Result from Device Global Memory to Host Local Memory
-    q.enqueueMigrateMemObjects(outBufVec,CL_MIGRATE_MEM_OBJECT_HOST);
+    OCL_CHECK(err,
+              err = q.enqueueMigrateMemObjects({buffer_output},
+                                               CL_MIGRATE_MEM_OBJECT_HOST));
     q.finish();
-//OPENCL HOST CODE AREA END
-    
+    //OPENCL HOST CODE AREA END
+
     // Compare the results of the Device to the simulation
     int match = 0;
-    for (int i = 0 ; i < DATA_SIZE ; i++){
-        if (source_hw_results[i] != source_sw_results[i]){
+    for (int i = 0; i < DATA_SIZE; i++) {
+        if (source_hw_results[i] != source_sw_results[i]) {
             std::cout << "Error: Result mismatch" << std::endl;
             std::cout << "i = " << i << " CPU result = " << source_sw_results[i]
-                << " Device result = " << source_hw_results[i] << std::endl;
+                      << " Device result = " << source_hw_results[i]
+                      << std::endl;
             match = 1;
             break;
         }
     }
 
-    std::cout << "TEST " << (match ? "FAILED" : "PASSED") << std::endl; 
-    return (match ? EXIT_FAILURE :  EXIT_SUCCESS);
+
+    std::cout << "TEST " << (match ? "FAILED" : "PASSED") << std::endl;
+    return (match ? EXIT_FAILURE : EXIT_SUCCESS);
 }

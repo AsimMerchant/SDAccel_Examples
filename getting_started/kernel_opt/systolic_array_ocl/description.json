@@ -12,15 +12,18 @@
     "libs": [
         "xcl2"
     ],
-    "nboard":["xilinx:vcu1525:dynamic", "xilinx_vcu1525_dynamic_5_0"],
-    "em_cmd": "./host",
-    "hw_cmd": "../../../utility/nimbix/nimbix-run.py -- ./host",
-    "accelerators": [
+    "host_exe": "host",
+    "cmd_args": "BUILD/mmult.xclbin",
+    "containers": [
+    {
+        "name": "mmult",        
+        "accelerators": [
         {
-            "container": "mmult", 
             "name": "mmult", 
             "location": "src/mmult.cl"
         }
+       ]
+     }
     ],
     "contributors" : [
         {
@@ -28,11 +31,11 @@
             "url" : "http://www.xilinx.com"
         }
     ],
-    "revision" : [
+    "testinfo": {
+        "level_up": [
         {
-            "date" : "DEC2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
+            "hw": "1"
         }
-    ]
+        ]
+    }
 }

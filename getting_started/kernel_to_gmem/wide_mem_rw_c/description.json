@@ -12,26 +12,23 @@
     "libs": [
         "xcl2"
     ],
-    "em_cmd": "./host",
-    "hw_cmd": "../../../utility/nimbix/nimbix-run.py -- ./host",
-    "accelerators": [
+    "host_exe": "host",
+    "cmd_args": "BUILD/vadd.xclbin",
+    "containers": [
+    {
+        "name": "vadd",        
+        "accelerators": [
         {
-            "container": "vadd", 
             "name": "vadd", 
             "location": "src/vadd.cpp"
         }
+       ]
+     }            
     ],
     "contributors" : [
         {
             "group": "Xilinx",
             "url" : "http://www.xilinx.com"
-        }
-    ],
-    "revision" : [
-        {
-            "date" : "DEC2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
         }
     ]
 }

@@ -4,26 +4,28 @@
     "overview" : [
        "This is an optimized implementation of a nearest neighbor linear search algorithm targeting execution on a SDAccel supported FPGA acceleration card."
     ],
-    "nboard": ["xilinx:kcu1500:dynamic", "xilinx_kcu1500_dynamic_5_0"],
-    "cmd_args" : "PROJECT/data/queries.txt PROJECT/data/targets.txt",
-    "em_cmd" : "./nearest data/queries.txt data/targets.txt",
-    "hw_cmd" : "../../utility/nimbix/nimbix-run.py -- ./nearest data/queries.txt data/targets.txt",
+    "host_exe": "nearest",
+    "host_srcs": "src/linear_search.cpp",
+    "cmd_args" : "BUILD/krnl_nearest.xclbin PROJECT/data/queries.txt PROJECT/data/targets.txt",
     "libs": [
-        "xcl"
-    ], 
-    "accelerators": [
+        "xcl2"
+    ],
+    "containers": [
+    {        
+        "name": "krnl_nearest",
+        "accelerators": [
         {
             "name": "krnl_linear_search", 
             "location": "src/krnl_linear_search.cpp"
         }
+      ]
+     }      
     ],
     "perf_fields" : ["Board", "Measurements per Cycle", "Gigameasurements / Second"],
     "performance": [
-        {
-            "system" : "xilinx:adm-pcie-ku3:2ddr-xpr",
-            "constraint" : "256",
-            "metric" : "37.5"
-        }
+        [
+            "xilinx:adm-pcie-ku3:2ddr-xpr", "256", "37.5"
+        ]
     ],
     "contributors" : [
         {
@@ -31,22 +33,17 @@
             "url" : "http://www.xilinx.com"
         }
     ],
-    "revision" : [
+    "testinfo": {
+        "level_up": [
         {
-            "date" : "FEB2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
-        },
-        {
-            "date" : "JUL2016",
-            "version": "2.0",
-            "description": "Conversion to Makefile based compilation"
-        },
-        {
-            "date" : "DEC2016",
-            "version": "3.0",
-            "description": "Update for SDAccel 2016.3"
+            "hw": "1"
         }
-    ]
+        ],
+        "resources": [
+        {
+            "mem": "16"    
+        }
+        ]
+    }
 
 }

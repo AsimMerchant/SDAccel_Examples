@@ -6,53 +6,35 @@
     ],
     "xcl": false,
     "opencv": true,
-    "cmd_args": "BUILD/default.xclbin PROJECT/data/inputImage.bmp PROJECT/data/goldenImage.bmp",
-    "em_cmd": "./median ./xclbin/krnl_median.<emulation type>.xilinx_adm-pcie-ku3_2ddr_3_1.xclbin data/inputImage.bmp data/goldenImage.bmp",
-    "hw_cmd": "../../utility/nimbix/nimbix-run.py -- ./median ./xclbin/krnl_median.hw.xilinx_adm-pcie-ku3_2ddr_3_1.xclbin data/inputImage data/goldenImage.bmp",
+    "host_exe": "median",
+    "host_srcs": "src/medianFilter.cpp",        
+    "cmd_args": "BUILD/krnl_median.xclbin PROJECT/data/inputImage.bmp PROJECT/data/goldenImage.bmp",
+    "output_files": "output.bmp",        
     "libs": [
         "xcl2", 
         "bitmap"
     ], 
-    "accelerators": [
+    "containers": [
+	{
+	"name": "krnl_median",
+	"accelerators": [
         {
             "name": "median", 
             "location": "src/krnl_medianFilter.cl"
         }
+	]
+	}
     ],
     "perf_fields": ["Board", "Image Size", "Frames / Second"],
     "performance": [
-        {
-            "system": "xilinx:adm-pcie-7v3:1ddr",
-            "constraint": "128 x 128",
-            "metric": "22,222"
-        }
+        [
+            "xilinx:adm-pcie-7v3:1ddr", "128 x 128", "22,222"
+        ]
     ],
     "contributors": [
         {
             "group": "Xilinx",
             "url": "http://www.xilinx.com"
-        }
-    ],
-    "revision": [
-        {
-            "date": "FEB2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
-        },
-        {
-            "date": "JUL2016",
-            "version": "2.0",
-            "description": "Conversion to Makefile based compilation"
-        },
-        {
-            "date":"DEC2016",
-            "version": "3.0",
-            "description": "Update for SDAccel 2016.3"
-        },
-        {
-            "date":"MAR2018",
-            "version": "4.0",
-            "description": "Update host to xcl2"
         }
     ]
 }

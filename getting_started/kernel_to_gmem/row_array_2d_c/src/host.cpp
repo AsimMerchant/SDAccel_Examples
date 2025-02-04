@@ -26,84 +26,107 @@ HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABI
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 **********/
+#include "host.h"
 #include "xcl2.hpp"
 #include <vector>
-#include "host.h"
 
-int main(int argc, char** argv)
-{
+int main(int argc, char **argv) {
+    if (argc != 2) {
+        std::cout << "Usage: " << argv[0] << " <XCLBIN File>" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    std::string binaryFile = argv[1];
 
     //Allocate Memory in Host Memory
     size_t vector_size_bytes = sizeof(DTYPE) * BLOCK_SIZE;
-    std::vector<DTYPE,aligned_allocator<DTYPE>> a   (BLOCK_SIZE);// original data set given to device
-    std::vector<DTYPE,aligned_allocator<DTYPE>> c   (BLOCK_SIZE);// results returned from device
-    std::vector<DTYPE,aligned_allocator<DTYPE>> sw_c(BLOCK_SIZE);// results returned from software
+    std::vector<DTYPE, aligned_allocator<DTYPE>> a(
+        BLOCK_SIZE); // original data set given to device
+    std::vector<DTYPE, aligned_allocator<DTYPE>> c(
+        BLOCK_SIZE); // results returned from device
+    std::vector<DTYPE, aligned_allocator<DTYPE>> sw_c(
+        BLOCK_SIZE); // results returned from software
 
-    // Create the test data and Software Result 
+    // Create the test data and Software Result
     int alpha = 3;
-    for(int i = 0; i < BLOCK_SIZE; i++) {
-      a[i] = i;
-      c[i] = 0;
-      sw_c[i] = alpha*a[i];
+    for (int i = 0; i < BLOCK_SIZE; i++) {
+        a[i] = i;
+        c[i] = 0;
+        sw_c[i] = alpha * a[i];
     }
 
-//OPENCL HOST CODE AREA START
+    //OPENCL HOST CODE AREA START
 
-    std::vector<cl::Device> devices = xcl::get_xil_devices();
-    cl::Device device = devices[0];
+    auto devices = xcl::get_xil_devices();
+    auto device = devices[0];
+    cl_int err;
 
-    cl::Context context(device);
-    cl::CommandQueue q(context, device, CL_QUEUE_PROFILING_ENABLE);
-    std::string device_name = device.getInfo<CL_DEVICE_NAME>(); 
+    OCL_CHECK(err, cl::Context context(device, NULL, NULL, NULL, &err));
+    OCL_CHECK(
+        err,
+        cl::CommandQueue q(context, device, CL_QUEUE_PROFILING_ENABLE, &err));
+    OCL_CHECK(err,
+              std::string device_name = device.getInfo<CL_DEVICE_NAME>(&err));
 
-    std::string binaryFile = xcl::find_binary_file(device_name,"row_array_2d");
-    cl::Program::Binaries bins = xcl::import_binary_file(binaryFile);
+   auto fileBuf = xcl::read_binary_file(binaryFile);
+   cl::Program::Binaries bins{{fileBuf.data(), fileBuf.size()}};
     devices.resize(1);
-    cl::Program program(context, devices, bins);
-    cl::Kernel krnl_row_array_2d(program,"row_array_2d");
+    OCL_CHECK(err, cl::Program program(context, devices, bins, NULL, &err));
+    OCL_CHECK(err, cl::Kernel krnl_row_array_2d(program, "row_array_2d", &err));
 
     //Allocate Buffer in Global Memory
-    cl::Buffer buffer_a(context,CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, 
-            vector_size_bytes,a.data());
-    cl::Buffer buffer_c(context,CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-            vector_size_bytes, c.data());
+    OCL_CHECK(err,
+              cl::Buffer buffer_a(context,
+                                  CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                                  vector_size_bytes,
+                                  a.data(),
+                                  &err));
+    OCL_CHECK(err,
+              cl::Buffer buffer_c(context,
+                                  CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+                                  vector_size_bytes,
+                                  c.data(),
+                                  &err));
 
-    std::vector<cl::Memory> inBufVec, outBufVec;
-    inBufVec.push_back(buffer_a);
-    outBufVec.push_back(buffer_c);
+    int nargs = 0;
+    OCL_CHECK(err, err = krnl_row_array_2d.setArg(nargs++, buffer_a));
+    OCL_CHECK(err, err = krnl_row_array_2d.setArg(nargs++, buffer_c));
+    OCL_CHECK(err, err = krnl_row_array_2d.setArg(nargs++, alpha));
 
     //Copy input data to device global memory
-    q.enqueueMigrateMemObjects(inBufVec,0/* 0 means from host*/);
-
-    int nargs=0;
-    krnl_row_array_2d.setArg(nargs++,buffer_a);
-    krnl_row_array_2d.setArg(nargs++,buffer_c);
-    krnl_row_array_2d.setArg(nargs++,alpha);
+    OCL_CHECK(
+        err,
+        err = q.enqueueMigrateMemObjects({buffer_a}, 0 /* 0 means from host*/));
 
     //Launch the Kernel
-    q.enqueueTask(krnl_row_array_2d);
+    OCL_CHECK(err, err = q.enqueueTask(krnl_row_array_2d));
 
     //Copy Result from Device Global Memory to Host Local Memory
-    q.enqueueMigrateMemObjects(outBufVec,CL_MIGRATE_MEM_OBJECT_HOST);
-    q.finish();
+    OCL_CHECK(err,
+              err = q.enqueueMigrateMemObjects({buffer_c},
+                                               CL_MIGRATE_MEM_OBJECT_HOST));
+    OCL_CHECK(err, err = q.finish());
 
-//OPENCL HOST CODE AREA END
+    //OPENCL HOST CODE AREA END
 
     // Validate
-    unsigned int correct = 0;              // number of correct results returned
-    for (int i = 0;i < BLOCK_SIZE; i++) {
-      if(c[i] == sw_c[i]) {
-        correct++; 
-      } else { 
-          std::cout << std::endl << " wrong sw " << sw_c[i] 
-              << " hw " << c[i] << " index " << i << std::endl;
-      }
+    unsigned int correct = 0; // number of correct results returned
+    for (int i = 0; i < BLOCK_SIZE; i++) {
+        if (c[i] == sw_c[i]) {
+            correct++;
+        } else {
+            std::cout << std::endl
+                      << " wrong sw " << sw_c[i] << " hw " << c[i] << " index "
+                      << i << std::endl;
+        }
     }
-    
-    // Print a brief summary detailing the results
-    std::cout << "Computed '" << correct << "/" << BLOCK_SIZE 
-        << "' correct values!" << std::endl;
 
-    std::cout << "TEST " << (correct!=BLOCK_SIZE ? "FAILED" : "PASSED") << std::endl; 
-    return (correct!=BLOCK_SIZE ? EXIT_FAILURE :  EXIT_SUCCESS);
+
+    // Print a brief summary detailing the results
+    std::cout << "Computed '" << correct << "/" << BLOCK_SIZE
+              << "' correct values!" << std::endl;
+
+    std::cout << "TEST " << (correct != BLOCK_SIZE ? "FAILED" : "PASSED")
+              << std::endl;
+    return (correct != BLOCK_SIZE ? EXIT_FAILURE : EXIT_SUCCESS);
 }

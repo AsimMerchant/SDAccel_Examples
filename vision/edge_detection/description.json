@@ -5,12 +5,14 @@
         "Implementation of a Sobel Filter for edge detection."
     ],
     "opencv": true,
-    "cmd_args": "PROJECT/data/input/eiffel.bmp",
-    "em_cmd": "./edge data/input/eiffel.bmp",
-    "hw_cmd": "../../utility/nimbix/nimbix-run.py -- ./edge data/input/eiffel.bmp",
+    "host_exe": "edge",
+    "host_srcs": "src/edge.cpp",
+    "host_hdrs": "src/edge.h",
+    "cmd_args": "BUILD/krnl_edge.xclbin PROJECT/data/input/eiffel.bmp",
+    "output_files": "input.bmp output.bmp",
     "libs": [
-        "opencv", 
-        "xcl"
+        "opencv",
+        "xcl2"
     ], 
     "containers" : [
         {
@@ -28,23 +30,5 @@
             "group": "Xilinx",
             "url": "http://www.xilinx.com"
         }
-    ],
-    "revision": [
-        {
-            "date": "FEB2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
-        },
-        {
-            "date": "JUL2016",
-            "version": "2.0",
-            "description": "Conversion to Makefile based compilation"
-        },
-        {
-            "date": "DEC2016",
-            "version": "3.0",
-            "description": "Update for SDAccel 2016.3"
-        }
-    ],
-    "match_makefile" : "false"
+    ]
 }

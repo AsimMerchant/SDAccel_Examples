@@ -31,45 +31,42 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 This is a simple example of Matrix Multiplication.
 */
 
-#include<iostream>
-#include<stdlib.h>
-
+#include <iostream>
+#include <stdlib.h>
+#include <algorithm>
 //Array size to access
-#define DATA_SIZE 32 
+#define DATA_SIZE 64
 
-void mmult_cpu( int *in1,   // Input matrix 1
-                int *in2,   // Input matrix 2
-                int *out,   // Output matrix (out = A x B)
-                int dim     // Matrix size of one dimension
-              )  
-{
+void mmult_cpu(int *in1, // Input matrix 1
+               int *in2, // Input matrix 2
+               int *out, // Output matrix (out = A x B)
+               int dim   // Matrix size of one dimension
+) {
     //Performs matrix multiplication out = in1 x in2
-    for (int i = 0; i < dim; i++){
-        for (int j = 0; j < dim; j++){
-            for (int k = 0; k < dim; k++){
-                out[i * dim + j] += in1[i * dim + k] * in2[k * dim  + j];
+    for (int i = 0; i < dim; i++) {
+        for (int j = 0; j < dim; j++) {
+            for (int k = 0; k < dim; k++) {
+                out[i * dim + j] += in1[i * dim + k] * in2[k * dim + j];
             }
         }
     }
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char **argv) {
     int size = DATA_SIZE;
     size_t matrix_size_bytes = sizeof(int) * size * size;
 
     //Allocate memory
-    int *source_in1 = (int *) malloc(matrix_size_bytes);
-    int *source_in2 = (int *) malloc(matrix_size_bytes);
-    int *source_cpu_results = (int *) malloc(matrix_size_bytes);
+    int *source_in1 = (int *)malloc(matrix_size_bytes);
+    int *source_in2 = (int *)malloc(matrix_size_bytes);
+    int *source_cpu_results = (int *)malloc(matrix_size_bytes);
 
     //Creates the data
-    for(int index = 0; index < size * size; index++){
-        source_in1[index] = index;
-        source_in2[index] = index * index;
+    std::generate(source_in1,source_in1+size*size,std::rand);
+    std::generate(source_in2,source_in2+size*size,std::rand);
+    for (int index = 0; index < size * size; index++) {
         source_cpu_results[index] = 0;
     }
-
 
     //Function call to perform matrix multiplication
     mmult_cpu(source_in1, source_in2, source_cpu_results, size);

@@ -35,11 +35,11 @@ Description:
     multiple compute units.
 
 *******************************************************************************/
-#include <iostream>
-#include <cstring>
 #include <cstdio>
-#include <vector>
+#include <cstring>
+#include <iostream>
 #include <unistd.h>
+#include <vector>
 
 //OpenCL utility layer include
 #include "xcl2.hpp"
@@ -48,111 +48,129 @@ Description:
 
 #define NUM_CU 8
 
-
 bool run_opencl_vadd(
-  std::vector<cl::Device> &devices,
-  cl::CommandQueue &q,
-  cl::Context &context,
-  std::string &device_name,
-  bool good,
-  int size,
-  std::vector<int, aligned_allocator<int>> &source_in1,
-  std::vector<int, aligned_allocator<int>> &source_in2,
-  std::vector<int, aligned_allocator<int>> &source_hw_results
-)
-{
-    std::string binaryFile;
+    std::vector<cl::Device> &devices,
+    cl::CommandQueue &q,
+    cl::Context &context,
+    std::string &device_name,
+    std::string &binaryFile,
+    bool good,
+    int size,
+    std::vector<int, aligned_allocator<int>> &source_in1,
+    std::vector<int, aligned_allocator<int>> &source_in2,
+    std::vector<int, aligned_allocator<int>> &source_hw_results) {
+    cl_int err;
 
-    if(good){
-        binaryFile = xcl::find_binary_file(device_name,"vadd_GOOD");
-    }
-    else{
-        binaryFile = xcl::find_binary_file(device_name,"vadd_BAD");
-        if(access(binaryFile.c_str(), R_OK) != 0) {
-            std::cout << "WARNING: vadd_BAD xclbin not built" << std::endl;
-            return false;
-        }
-    }
-
-    cl::Program::Binaries bins = xcl::import_binary_file(binaryFile);
+   auto fileBuf = xcl::read_binary_file(binaryFile);
+   cl::Program::Binaries bins{{fileBuf.data(), fileBuf.size()}};
     devices.resize(1);
-    cl::Program program(context, devices, bins);
-    cl::Kernel krnl_vector_add(program,"vadd");
+    OCL_CHECK(err, cl::Program program(context, devices, bins, NULL, &err));
+    cl::Kernel krnl_vector_add;
+    if (good) {
+        OCL_CHECK(err,
+                  krnl_vector_add = cl::Kernel(program, "vadd_GOOD", &err));
+    } else {
+        OCL_CHECK(err, krnl_vector_add = cl::Kernel(program, "vadd_BAD", &err));
+    }
 
-    std::cout << "Starting " << (good ? "GOOD" : "BAD") << " Kernel" << std::endl;
+    std::cout << "Starting " << (good ? "GOOD" : "BAD") << " Kernel"
+              << std::endl;
 
     size_t vector_size_bytes = sizeof(int) * size;
 
     //Allocate Buffer in Global Memory
-    std::vector<cl::Memory> inBufVec, outBufVec;
-    cl::Buffer buffer_in1 (context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
-                            vector_size_bytes,source_in1.data());
-    cl::Buffer buffer_in2(context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-            vector_size_bytes,source_in2.data());
-    cl::Buffer buffer_output(context, CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
-            vector_size_bytes,source_hw_results.data());
+    OCL_CHECK(err,
+              cl::Buffer buffer_in1(context,
+                                    CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                                    vector_size_bytes,
+                                    source_in1.data(),
+                                    &err));
+    OCL_CHECK(err,
+              cl::Buffer buffer_in2(context,
+                                    CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+                                    vector_size_bytes,
+                                    source_in2.data(),
+                                    &err));
+    OCL_CHECK(err,
+              cl::Buffer buffer_output(context,
+                                       CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+                                       vector_size_bytes,
+                                       source_hw_results.data(),
+                                       &err));
 
-    inBufVec.push_back(buffer_in1);
-    inBufVec.push_back(buffer_in2);
-    outBufVec.push_back(buffer_output);
-
-    //Copy input data to device global memory
-    q.enqueueMigrateMemObjects(inBufVec,0/* 0 means from host*/);
-
-    if(good){
-        krnl_vector_add.setArg(0,buffer_in1);
-        krnl_vector_add.setArg(1,buffer_in2);
-        krnl_vector_add.setArg(2,buffer_output);
-        krnl_vector_add.setArg(3,size);
+    if (good) {
+        OCL_CHECK(err, err = krnl_vector_add.setArg(0, buffer_in1));
+        OCL_CHECK(err, err = krnl_vector_add.setArg(1, buffer_in2));
+        OCL_CHECK(err, err = krnl_vector_add.setArg(2, buffer_output));
+        OCL_CHECK(err, err = krnl_vector_add.setArg(3, size));
         std::cout << "Launching Kernels...." << std::endl;
-   
+
+        //Copy input data to device global memory
+        OCL_CHECK(err,
+                  err = q.enqueueMigrateMemObjects({buffer_in1, buffer_in2},
+                                                   0 /* 0 means from host*/));
+
         //Launch the Kernel
-        q.enqueueTask(krnl_vector_add);
-        q.finish();
+        OCL_CHECK(err, err = q.enqueueTask(krnl_vector_add));
+        OCL_CHECK(err, err = q.finish());
 
         std::cout << "Kernel Execution Finished...." << std::endl;
 
         //Copy Result from Device Global Memory to Host Local Memory
-        q.enqueueMigrateMemObjects(outBufVec,CL_MIGRATE_MEM_OBJECT_HOST);
-        q.finish();
-    }
-    else{
-        for(int i = 0; i < NUM_CU; i++){
+        OCL_CHECK(err,
+                  err = q.enqueueMigrateMemObjects({buffer_output},
+                                                   CL_MIGRATE_MEM_OBJECT_HOST));
+        OCL_CHECK(err, err = q.finish());
+    } else {
+        for (int i = 0; i < NUM_CU; i++) {
 
-        int narg = 0;
- 
-        krnl_vector_add.setArg(narg++,buffer_in1);
-        krnl_vector_add.setArg(narg++,buffer_in2);
-        krnl_vector_add.setArg(narg++,buffer_output);
-        krnl_vector_add.setArg(narg++,size);
-        krnl_vector_add.setArg(narg++,i);
+            int narg = 0;
 
-        //Launch the Kernel
-        q.enqueueTask(krnl_vector_add);
-        q.finish();
+            OCL_CHECK(err, err = krnl_vector_add.setArg(narg++, buffer_in1));
+            OCL_CHECK(err, err = krnl_vector_add.setArg(narg++, buffer_in2));
+            OCL_CHECK(err, err = krnl_vector_add.setArg(narg++, buffer_output));
+            OCL_CHECK(err, err = krnl_vector_add.setArg(narg++, size));
+            OCL_CHECK(err, err = krnl_vector_add.setArg(narg++, i));
+
+            //Copy input data to device global memory
+            OCL_CHECK(err,
+                      err = q.enqueueMigrateMemObjects(
+                          {buffer_in1, buffer_in2}, 0 /* 0 means from host*/));
+
+            //Launch the Kernel
+            OCL_CHECK(err, err = q.enqueueTask(krnl_vector_add));
+        }
+        OCL_CHECK(err, err = q.finish());
 
         //Copy Result from Device Global Memory to Host Local Memory
-        q.enqueueMigrateMemObjects(outBufVec,CL_MIGRATE_MEM_OBJECT_HOST);
-        q.finish();
-        }
+        OCL_CHECK(err,
+                  err = q.enqueueMigrateMemObjects({buffer_output},
+                                                   CL_MIGRATE_MEM_OBJECT_HOST));
+        OCL_CHECK(err, err = q.finish());
         std::cout << "Kernel Execution Finished...." << std::endl;
     }
     return true;
 }
+int main(int argc, char **argv) {
 
-int main(int argc, char** argv)
-{
+    if (argc != 3) {
+        std::cout << "Usage: " << argv[0] << " <GOOD XCLBIN File>"
+                  << " <BAD XCLBIN File>" << std::endl;
+        return EXIT_FAILURE;
+    }
+
     //Amount of vector data to be processed by kernel
     int size = DATA_SIZE;
+    cl_int err;
 
     std::vector<int, aligned_allocator<int>> source_in1(size);
     std::vector<int, aligned_allocator<int>> source_in2(size);
     std::vector<int, aligned_allocator<int>> source_hw_good_results(size);
     std::vector<int, aligned_allocator<int>> source_hw_bad_results(size);
     std::vector<int, aligned_allocator<int>> source_sw_results(size);
- 
-    // Create the test data and Software Result 
-    for(int i = 0 ; i < DATA_SIZE ; i++){
+
+    // Create the test data and Software Result
+    for (int i = 0; i < DATA_SIZE; i++) {
         source_in1[i] = i;
         source_in2[i] = i * i;
         source_sw_results[i] = i * i + i;
@@ -160,35 +178,64 @@ int main(int argc, char** argv)
         source_hw_bad_results[i] = 0;
     }
 
-//OPENCL HOST CODE AREA START
+    //OPENCL HOST CODE AREA START
     //Create Program and Kernels
-    std::vector<cl::Device> devices = xcl::get_xil_devices();
-    cl::Device device = devices[0];
+    auto devices = xcl::get_xil_devices();
+    auto device = devices[0];
 
-    cl::Context context(device);
-    cl::CommandQueue q(context, device, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE);
-    std::string device_name = device.getInfo<CL_DEVICE_NAME>();
+    OCL_CHECK(err, cl::Context context(device, NULL, NULL, NULL, &err));
+    OCL_CHECK(err,
+              cl::CommandQueue q(context,
+                                 device,
+                                 CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+                                     CL_QUEUE_PROFILING_ENABLE,
+                                 &err));
+    auto device_name = device.getInfo<CL_DEVICE_NAME>();
+    std::string binaryFile;
 
-    run_opencl_vadd(devices,q,context,device_name, true, size, source_in1, source_in2, source_hw_good_results);
-    bool bad_return = run_opencl_vadd(devices,q,context,device_name, false, size, source_in1, source_in2, source_hw_bad_results);
+    binaryFile = argv[1];
+    run_opencl_vadd(devices,
+                    q,
+                    context,
+                    device_name,
+                    binaryFile,
+                    true,
+                    size,
+                    source_in1,
+                    source_in2,
+                    source_hw_good_results);
+    binaryFile = argv[2];
+    bool bad_return = run_opencl_vadd(devices,
+                                      q,
+                                      context,
+                                      device_name,
+                                      binaryFile,
+                                      false,
+                                      size,
+                                      source_in1,
+                                      source_in2,
+                                      source_hw_bad_results);
 
-//OPENCL HOST CODE AREA END
-    
+    //OPENCL HOST CODE AREA END
+
     // Compare the results of the Device to the simulation
     bool match = true;
-    for (int i = 0 ; i < DATA_SIZE ; i++){
-        if (source_hw_good_results[i] != source_sw_results[i]){
+    for (int i = 0; i < DATA_SIZE; i++) {
+        if (source_hw_good_results[i] != source_sw_results[i]) {
             std::cout << "Error: Result mismatch in vadd_GOOD" << std::endl;
             std::cout << "i = " << i << " CPU result = " << source_sw_results[i]
-                << " Device result = " << source_hw_good_results[i] << std::endl;
+                      << " Device result = " << source_hw_good_results[i]
+                      << std::endl;
             match = false;
             break;
         }
-        if(bad_return){ 
-            if (source_hw_bad_results[i] != source_sw_results[i]){
+        if (bad_return) {
+            if (source_hw_bad_results[i] != source_sw_results[i]) {
                 std::cout << "Error: Result mismatch in vadd_BAD" << std::endl;
-                std::cout << "i = " << i << " CPU result = " << source_sw_results[i]
-                    << " Device result = " << source_hw_bad_results[i] << std::endl;
+                std::cout << "i = " << i
+                          << " CPU result = " << source_sw_results[i]
+                          << " Device result = " << source_hw_bad_results[i]
+                          << std::endl;
                 match = false;
                 break;
             }
@@ -196,5 +243,5 @@ int main(int argc, char** argv)
     }
 
     std::cout << "TEST " << (match ? "PASSED" : "FAILED") << std::endl;
-    return (match ? EXIT_SUCCESS :  EXIT_FAILURE);
+    return (match ? EXIT_SUCCESS : EXIT_FAILURE);
 }

@@ -7,23 +7,26 @@
     "os": [
         "Linux"
     ],
+   "nboard": [
+	"xilinx_u50_xdma",
+        "xilinx_aws-vu9p-f1-04261818",
+	"xilinx:u50:xdma", 
+        "xilinx:aws-vu9p-f1-04261818:dynamic"
+    ],  
     "libs": [
         "xcl2"
     ],
-    "em_cmd" : "./kernel_global",
-    "hw_cmd" : "../../../utility/nimbix/nimbix-run.py -- ./kernel_global",
-    "compiler" : {
-             "options" : "-DUSE_4DDR"
-    },
+    "host_srcs": "src/kernel_global_bandwidth.cpp",
+    "host_exe": "kernel_global",
+    "cmd_args": "BUILD/krnl_kernel_global.xclbin",
+    "config_make": "config.mk",
     "containers": [
         {
             "name": "krnl_kernel_global", 
-            "ldclflags": "--sp bandwidth_1.m_axi_gmem0:bank0 --sp bandwidth_1.m_axi_gmem1:bank1 --sp bandwidth_1.m_axi_gmem2:bank2 --sp bandwidth_1.m_axi_gmem3:bank3",
             "accelerators": [
                 {
                     "name": "bandwidth",
-                    "max_memory_ports": "true", 
-                    "clflags": "-DUSE_4DDR",
+                    "max_memory_ports": "true",
                     "location": "src/kernel.cl"
                 }
             ]
@@ -35,26 +38,11 @@
             "url" : "http://www.xilinx.com"
         }
     ],
-    "revision" : [
+    "testinfo": {
+        "level_up": [
         {
-            "date" : "AUG2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
-        },
-        {
-            "date" : "DEC2016",
-            "version": "2.0",
-            "description": "Update for SDAccel 2016.3"
-        },
-        {
-            "date" : "FEB2017",
-            "version": "3.0",
-            "description": "Updated to support 4 DDR banks"
-        },
-	{
-	    "date" : "MAR2018",
-	    "version": "4.0",
-	    "description": "Updated host to xcl2"
-	}
-    ]
+            "hw": "1"
+        }
+        ]
+    }
 }

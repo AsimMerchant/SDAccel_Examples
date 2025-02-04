@@ -67,45 +67,55 @@ Description:
     Example to demonstrate how memory coalescing issue can be handled.
 *******************************************************************************/
 #include <string.h>
-			
+
 #define LENGTH 8
 #define ITERATION 64
+
+//TRIPCOUNT identifier
+const unsigned int c_len = LENGTH;
+const unsigned int c_size = ITERATION;
 extern "C" {
-void dummy_op(int *din1,int *din2,int *din3,int *dout)
-{
+void dummy_op(int *din1, int *din2, int *din3, int *dout) {
 
-#pragma HLS INTERFACE m_axi port=din1 offset=slave bundle=gmem
-#pragma HLS INTERFACE m_axi port=din2 offset=slave  bundle=gmem1
+#pragma HLS INTERFACE m_axi port = din1 offset = slave bundle = gmem
+#pragma HLS INTERFACE m_axi port = din2 offset = slave bundle = gmem1
 
-#if DEADLOCK==0 
+#if DEADLOCK == 0
     // Adding another m_axi interface to avoid deadlock
-    #pragma HLS INTERFACE m_axi port=din3 offset=slave  bundle=gmem2
+#pragma HLS INTERFACE m_axi port = din3 offset = slave bundle = gmem2
 #else
-    #pragma HLS INTERFACE m_axi port=din3 offset=slave  bundle=gmem
+#pragma HLS INTERFACE m_axi port = din3 offset = slave bundle = gmem
 #endif
-#pragma HLS INTERFACE m_axi port=dout offset=slave  bundle=gmem
-#pragma HLS INTERFACE s_axilite port=din1 bundle=control
-#pragma HLS INTERFACE s_axilite port=din2 bundle=control
-#pragma HLS INTERFACE s_axilite port=din3 bundle=control
-#pragma HLS INTERFACE s_axilite port=dout bundle=control
-#pragma HLS INTERFACE s_axilite port=return bundle=control
+#pragma HLS INTERFACE m_axi port = dout offset = slave bundle = gmem
+#pragma HLS INTERFACE s_axilite port = din1 bundle = control
+#pragma HLS INTERFACE s_axilite port = din2 bundle = control
+#pragma HLS INTERFACE s_axilite port = din3 bundle = control
+#pragma HLS INTERFACE s_axilite port = dout bundle = control
+#pragma HLS INTERFACE s_axilite port = return bundle = control
 
-    //Deadlock/Hang: Vivado HLS coalesce the burst happening in the outer 
-    //loop through gmem m_axi interface for variable din1 and another 
-    //access on the same gmem m_axi inside lower loop using "din3" and 
-    //that is hanging/deadlocking in hw emulation as well as on board.
-    //Solution: Making another m_axi interface to avoid deadlock.
-    UPPER_LOOP:for (int i = 0; i < ITERATION; i++) {
+//Deadlock/Hang: Vivado HLS coalesce the burst happening in the outer
+//loop through gmem m_axi interface for variable din1 and another
+//access on the same gmem m_axi inside lower loop using "din3" and
+//that is hanging/deadlocking in hw emulation as well as on board.
+//Solution: Making another m_axi interface to avoid deadlock.
+UPPER_LOOP:
+    for (int i = 0; i < ITERATION; i++) {
+        #pragma TRIPCOUNT min = c_size max = c_size
         int din2_buf_0[LENGTH];
         int din1_buf_0[LENGTH];
-        memcpy(din2_buf_0,&din2[i*LENGTH], LENGTH * sizeof (int));
-        memcpy(din1_buf_0,&din1[i*LENGTH], LENGTH * sizeof (int));
+
+        for (int j = 0; j < LENGTH; j++) {
+	    #pragma TRIPCOUNT min = c_len max = c_len
+            #pragma HLS PIPELINE II=1
+            din1_buf_0[j] = din1[i * LENGTH + j];
+            din2_buf_0[j] = din2[i * LENGTH + j];
+        }
         int sum = 0;
-        LOWER_LOOP:for (int j = 0; j <  LENGTH; j++) 
-        {
-         #pragma HLS pipeline II=1
-          int Si = din1_buf_0[j] + din2_buf_0[j] + din3[j];
-          sum += Si;
+    LOWER_LOOP:
+        for (int j = 0; j < LENGTH; j++) {
+            #pragma HLS PIPELINE II=1
+            int Si = din1_buf_0[j] + din2_buf_0[j] + din3[j];
+            sum += Si;
         }
         dout[i] = sum;
     }

@@ -32,7 +32,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 #include <vector>
 #include "bit_io.h"
-#include "xcl.h"
+#include "xcl2.hpp"
 #include "huffmancodec_naive.h"
 
 #define COMPUTE_UNITS 1
@@ -40,49 +40,46 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using namespace std;
 
 namespace sda {
-namespace cl {
-
 /*!
  *
  */
+
 class HuffmanOptimized : public ICodec {
 public:
-	HuffmanOptimized();
-	HuffmanOptimized(string& vendor_name,
-		   string& device_name,
-		   int selected_device,
-		   string& strKernelFP,
-		   string& strBitmapFP);
-	virtual ~HuffmanOptimized();
+    HuffmanOptimized();
+    HuffmanOptimized(string& strBitmapFP, string& binaryFile);
+    virtual ~HuffmanOptimized();
 
-	enum EvBreakDown {evtHostWrite = 0, evtKernelExec = 1, evtHostRead = 2, evtCount = 3};
+    enum EvBreakDown {evtHostWrite = 0, evtKernelExec = 1, evtHostRead = 2, evtCount = 3};
 
-	//overide interface funcs
-	int enc(const vector<u8>& in_data, vector<u8>& out_data);
-	int dec(const vector<u8>& in_data, vector<u8>& out_data);
+    //overide interface funcs
+    int enc(const vector<u8>& in_data, vector<u8>& out_data);
+    int dec(const vector<u8>& in_data, vector<u8>& out_data);
 
-	bool run(int idevice, int nruns);
-	bool invoke_kernel(cl_kernel krnl, const vector<u8>& vec_input, vector<u8>& vec_output, cl_event events[evtCount]);
+    bool run(int idevice, int nruns);
+    bool invoke_kernel(cl::Kernel krnl, const vector<u8>& vec_input, vector<u8>& vec_output, cl::Event events[evtCount]);
 
 
-	static double timestamp();
-	static double computeEventDurationInMS(const cl_event& event);
-
+    static double timestamp();
+    static double computeEventDurationInMS(const cl::Event& event);
 
 protected:
-	void cleanup();
-	bool releaseMemObject(cl_mem &obj);
+    void cleanup();
+    bool releaseMemObject(cl::Memory &obj);
 
 private:
-	string m_strBitmapFP;
+    string m_strBitmapFP;
+    cl_int err;
+    unsigned fileBufSize;
+    char* fileBuf;
 
-	xcl_world m_world;
-	cl_program m_program;
-	cl_kernel m_clKernelHuffmanEncoder;
-	cl_kernel m_clKernelHuffmanDecoder;
+    cl::Context context;
+    cl::CommandQueue q;
+    cl::Program m_program;
+    cl::Kernel m_clKernelHuffmanEncoder;
+    cl::Kernel m_clKernelHuffmanDecoder;
 };
 
-}
 }
 
 #endif /* AESAPP_H_ */

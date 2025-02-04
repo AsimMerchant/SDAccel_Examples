@@ -1,43 +1,135 @@
-# Smithwaterman Application
-COMMON_REPO =../../
+.PHONY: help
 
-include $(COMMON_REPO)/utility/boards.mk
-include $(COMMON_REPO)/libs/xcl/xcl.mk
-include $(COMMON_REPO)/libs/logger/logger.mk
-include $(COMMON_REPO)/libs/cmdparser/cmdparser.mk
-include $(COMMON_REPO)/libs/opencl/opencl.mk
+help::
+	$(ECHO) "Makefile Usage:"
+	$(ECHO) "  make all TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to generate the design for specified Target and Device."
+	$(ECHO) ""
+	$(ECHO) "  make clean "
+	$(ECHO) "      Command to remove the generated non-hardware files."
+	$(ECHO) ""
+	$(ECHO) "  make cleanall"
+	$(ECHO) "      Command to remove all the generated files."
+	$(ECHO) ""
+	$(ECHO) "  make check TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to run application in emulation."
+	$(ECHO) ""
+	$(ECHO) "  make build TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to build xclbin application."
+	$(ECHO) ""
+	$(ECHO) "  make run_nimbix DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to run application on Nimbix Cloud."
+	$(ECHO) ""
+	$(ECHO) "  make aws_build DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to build AWS xclbin application on AWS Cloud."
+	$(ECHO) ""
 
-# Smithwaterman Application
-smithwaterman_SRCS=./src/main.cpp ./src/genseq.cpp ./src/matcharray.cpp ./src/smithwaterman.cpp
-smithwaterman_SRCS+= ./src/intel/ssw.c ./src/intel/sc_demo.c
-smithwaterman_SRCS+= $(logger_SRCS) $(cmdparser_SRCS) $(xcl_SRCS)
-smithwaterman_HDRS=./src/matcharray.h ./src/smithwaterman.h ./src/sw.h
-smithwaterman_HDRS+= ./src/intel/ssw.h ./src/intel/kseq.h
-smithwaterman_HDRS+= $(logger_HDRS) $(cmdparser_HDRS) $(xcl_HDRS)
-smithwaterman_CXXFLAGS=-std=c++0x -DFPGA_DEVICE -I./src/ $(opencl_CXXFLAGS)
-smithwaterman_CXXFLAGS+= $(logger_CXXFLAGS) $(cmdparser_CXXFLAGS) $(xcl_CXXFLAGS)
-smithwaterman_LDFLAGS=$(opencl_LDFLAGS) -fopenmp -lz
+# Points to Utility Directory
+COMMON_REPO = ../../
+ABS_COMMON_REPO = $(shell readlink -f $(COMMON_REPO))
 
-EXES=smithwaterman
+TARGETS := hw
+TARGET := $(TARGETS)
+DEVICE := $(DEVICES)
+XCLBIN := ./xclbin
 
-# Smithwaterman Kernel
-krnl_smithwaterman_SRCS=./src/opencl_sw_maxscore_systolic.cpp
-krnl_smithwaterman_HDRS=./src/sw.h
-krnl_smithwaterman_CLFLAGS=--kernel opencl_sw_maxscore -I./src/ --kernel_frequency 235 
+include ./utils.mk
 
-XOS=krnl_smithwaterman
+DSA := $(call device2dsa, $(DEVICE))
+BUILD_DIR := ./_x.$(TARGET).$(DSA)
 
-# Smithwaterman xclbin
-krnl_smithwaterman_XOS=krnl_smithwaterman
-krnl_smithwaterman_LDCLFLAGS=--nk opencl_sw_maxscore:2
+BUILD_DIR_krnl_smithwaterman = $(BUILD_DIR)/krnl_smithwaterman
 
-XCLBINS=krnl_smithwaterman
+CXX := $(XILINX_SDX)/bin/xcpp
+XOCC := $(XILINX_SDX)/bin/xocc
 
-# check
-check_EXE=smithwaterman
-check_XCLBINS=krnl_smithwaterman
+#Include Libraries
+include $(ABS_COMMON_REPO)/libs/opencl/opencl.mk
+include $(ABS_COMMON_REPO)/libs/logger/logger.mk
+include $(ABS_COMMON_REPO)/libs/cmdparser/cmdparser.mk
+include $(ABS_COMMON_REPO)/libs/xcl2/xcl2.mk
+CXXFLAGS += $(logger_CXXFLAGS) $(cmdparser_CXXFLAGS) $(xcl2_CXXFLAGS)
+LDFLAGS += $(logger_LDFLAGS) $(cmdparser_LDFLAGS) $(xcl2_LDFLAGS)
+HOST_SRCS += $(logger_SRCS) $(cmdparser_SRCS) $(xcl2_SRCS)
 
-CHECKS=check
+CXXFLAGS += -lz -fopenmp
+CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O0 -g -std=c++14
+LDFLAGS += $(opencl_LDFLAGS)
 
-include $(COMMON_REPO)/utility/rules.mk
+HOST_SRCS += ./src/main.cpp ./src/genseq.cpp ./src/matcharray.cpp ./src/smithwaterman.cpp ./src/intel/ssw.c ./src/intel/sc_demo.c
+HOST_HDRS += ./src/matcharray.h ./src/smithwaterman.h ./src/sw.h ./src/intel/ssw.h ./src/intel/kseq.h
+
+# Host compiler global settings
+CXXFLAGS += -fmessage-length=0 -DFPGA_DEVICE -I./src/
+LDFLAGS += -lrt -lstdc++ 
+
+# Kernel compiler global settings
+CLFLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps 
+CLFLAGS += -I./src/ --kernel_frequency 235
+
+
+
+EXECUTABLE = smithwaterman
+CMD_ARGS = $(XCLBIN)/krnl_smithwaterman.$(TARGET).$(DSA).xclbin
+
+EMCONFIG_DIR = $(XCLBIN)/$(DSA)
+
+BINARY_CONTAINERS += $(XCLBIN)/krnl_smithwaterman.$(TARGET).$(DSA).xclbin
+BINARY_CONTAINER_krnl_smithwaterman_OBJS += $(XCLBIN)/opencl_sw_maxscore.$(TARGET).$(DSA).xo
+
+CP = cp -rf
+
+.PHONY: all clean cleanall docs emconfig
+all: check-devices $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig
+
+.PHONY: exe
+exe: $(EXECUTABLE)
+
+.PHONY: build
+build: $(BINARY_CONTAINERS)
+
+# Building kernel
+$(XCLBIN)/opencl_sw_maxscore.$(TARGET).$(DSA).xo: src/opencl_sw_maxscore_systolic.cpp
+	mkdir -p $(XCLBIN)
+	$(XOCC) $(CLFLAGS) --temp_dir $(BUILD_DIR_krnl_smithwaterman) -c -k opencl_sw_maxscore -I'$(<D)' -o'$@' '$<'
+$(XCLBIN)/krnl_smithwaterman.$(TARGET).$(DSA).xclbin: $(BINARY_CONTAINER_krnl_smithwaterman_OBJS)
+	mkdir -p $(XCLBIN)
+	$(XOCC) $(CLFLAGS) --temp_dir $(BUILD_DIR_krnl_smithwaterman) -l $(LDCLFLAGS) --nk opencl_sw_maxscore:1 -o'$@' $(+)
+
+# Building Host
+$(EXECUTABLE): check-xrt $(HOST_SRCS) $(HOST_HDRS)
+	$(CXX) $(CXXFLAGS) $(HOST_SRCS) $(HOST_HDRS) -o '$@' $(LDFLAGS)
+
+emconfig:$(EMCONFIG_DIR)/emconfig.json
+$(EMCONFIG_DIR)/emconfig.json:
+	emconfigutil --platform $(DEVICE) --od $(EMCONFIG_DIR)
+
+check: all
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
+	$(CP) $(EMCONFIG_DIR)/emconfig.json .
+	XCL_EMULATION_MODE=$(TARGET) ./$(EXECUTABLE) $(XCLBIN)/krnl_smithwaterman.$(TARGET).$(DSA).xclbin
+else
+	 ./$(EXECUTABLE) $(XCLBIN)/krnl_smithwaterman.$(TARGET).$(DSA).xclbin
+endif
+ifneq ($(TARGET),$(findstring $(TARGET), sw_emu hw))
+$(warning WARNING:Application supports only sw_emu hw TARGET. Please use the target for running the application)
+endif
+
+	sdx_analyze profile -i profile_summary.csv -f html
+
+run_nimbix: all
+	$(COMMON_REPO)/utility/nimbix/run_nimbix.py $(EXECUTABLE) $(CMD_ARGS) $(DSA)
+
+aws_build: check-aws_repo $(BINARY_CONTAINERS)
+	$(COMMON_REPO)/utility/aws/run_aws.py $(BINARY_CONTAINERS)
+
+# Cleaning stuff
+clean:
+	-$(RMDIR) $(EXECUTABLE) $(XCLBIN)/{*sw_emu*,*hw_emu*} 
+	-$(RMDIR) profile_* TempConfig system_estimate.xtxt *.rpt *.csv 
+	-$(RMDIR) src/*.ll _xocc_* .Xil emconfig.json dltmp* xmltmp* *.log *.jou *.wcfg *.wdb
+
+cleanall: clean
+	-$(RMDIR) $(XCLBIN)
+	-$(RMDIR) _x.*
 

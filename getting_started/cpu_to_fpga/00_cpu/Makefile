@@ -1,103 +1,3 @@
-#+-------------------------------------------------------------------------------
-# The following parameters are assigned with default values. These parameters can
-# be overridden through the make command line
-#+-------------------------------------------------------------------------------
-
-# Run Target:
-#   hw  - Compile for hardware
-#   sw_emu/hw_emu - Compile for software/hardware emulation
-# FPGA Board Platform (Default ~ ku115)
-
-REPORT := no
-PROFILE := no
-DEBUG := no
-
-TARGETS := hw
-TARGET := $(TARGETS)
-DEVICES := xilinx_kcu1500_dynamic_5_0
-DEVICE := $(DEVICES)
-XCLBIN := ./xclbin
-
-CXX := $(XILINX_SDX)/bin/xcpp
-XOCC := $(XILINX_SDX)/bin/xocc
-
-# Points to Utility Directory
-COMMON_REPO = ../../../
-ABS_COMMON_REPO = $(shell readlink -f $(COMMON_REPO))
-
-CXXFLAGS := -Wall -O0 -g -std=c++14
-
-HOST_SRCS = src/host.cpp
-
-# Host compiler global settings
-CXXFLAGS = -I $(XILINX_SDX)/runtime/include/1_2/ -I/$(XILINX_SDX)/Vivado_HLS/include/ -O0 -g -Wall -fmessage-length=0 -std=c++14
-LDFLAGS = -lOpenCL -lpthread -lrt -lstdc++ -L$(XILINX_SDX)/runtime/lib/x86_64
-
-# Kernel compiler global settings
-CLFLAGS = -t $(TARGET) --platform $(DEVICE) --save-temps 
-CLFLAGS += --xp "param:compiler.preserveHlsOutput=1" --xp "param:compiler.generateExtraRunData=true"
-#'estimate' for estimate report generation
-#'system' for system report generation
-ifneq ($(REPORT), no)
-CLFLAGS += --report estimate
-CLLDFLAGS += --report system
-endif
-
-#Generates profile summary report
-ifeq ($(PROFILE), yes)
-CLFLAGS += --profile_kernel data:all:all:all
-endif
-
-#Generates debug summary report
-ifeq ($(DEBUG), yes)
-CLFLAGS += --dk protocol:all:all:all
-endif
-
-EXECUTABLE = host
-
-#Include Libraries
-
-
-CP = cp -rf
-
-.PHONY: all clean cleanall docs
-all: $(EXECUTABLE) $(BINARY_CONTAINERS)
-
-.PHONY: exe
-exe: $(EXECUTABLE)
-
-# Building kernel
-
-
-# Building Host
-$(EXECUTABLE): $(HOST_SRCS)
-	mkdir -p $(XCLBIN)
-	$(CXX) $(CXXFLAGS) $(HOST_SRCS) -o '$@' $(LDFLAGS)
-
-check: all
-ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
-	emconfigutil --platform $(DEVICE) --od .
-	XCL_EMULATION_MODE=$(TARGET) ./$(EXECUTABLE)
-endif
-
-#Reporting warning if not targeting for Targets
-ifneq (sw_emu,$(findstring sw_emu,$(TARGET)))
-	$(warning WARNING:Application supports only sw_emu TARGET. Please use the target for running the application)
-endif
-
-# Cleaning stuff
-RM = rm -f
-RMDIR = rm -rf
-clean:
-	-$(RMDIR) $(EXECUTABLE) $(XCLBIN)/{*sw_emu*,*hw_emu*} 
-	-$(RMDIR) sdaccel_* TempConfig system_estimate.xtxt *.rpt
-	-$(RMDIR) src/*.ll _xocc_* .Xil emconfig.json dltmp* xmltmp* *.log *.jou *.wcfg *.wdb
-
-cleanall: clean
-	-$(RMDIR) $(XCLBIN)
-
-ECHO:= @echo
-
 .PHONY: help
 
 help::
@@ -114,9 +14,100 @@ help::
 	$(ECHO) "  make check TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform>"
 	$(ECHO) "      Command to run application in emulation."
 	$(ECHO) ""
+	$(ECHO) "  make build TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to build xclbin application."
+	$(ECHO) ""
+	$(ECHO) "  make run_nimbix DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to run application on Nimbix Cloud."
+	$(ECHO) ""
+	$(ECHO) "  make aws_build DEVICE=<FPGA platform>"
+	$(ECHO) "      Command to build AWS xclbin application on AWS Cloud."
+	$(ECHO) ""
 
-docs: README.md
+# Points to Utility Directory
+COMMON_REPO = ../../../
+ABS_COMMON_REPO = $(shell readlink -f $(COMMON_REPO))
 
-README.md: description.json
-	$(ABS_COMMON_REPO)/utility/readme_gen/readme_gen.py description.json
+TARGETS := hw
+TARGET := $(TARGETS)
+DEVICE := $(DEVICES)
+XCLBIN := ./xclbin
+
+include ./utils.mk
+
+DSA := $(call device2dsa, $(DEVICE))
+BUILD_DIR := ./_x.$(TARGET).$(DSA)
+
+
+CXX := $(XILINX_SDX)/bin/xcpp
+XOCC := $(XILINX_SDX)/bin/xocc
+
+#Include Libraries
+include $(ABS_COMMON_REPO)/libs/opencl/opencl.mk
+
+CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O0 -g -std=c++14
+LDFLAGS += $(opencl_LDFLAGS)
+
+HOST_SRCS += src/host.cpp
+
+# Host compiler global settings
+CXXFLAGS += -fmessage-length=0
+LDFLAGS += -lrt -lstdc++ 
+
+# Kernel compiler global settings
+CLFLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps 
+
+EXECUTABLE = host
+
+EMCONFIG_DIR = $(XCLBIN)/$(DSA)
+
+
+CP = cp -rf
+
+.PHONY: all clean cleanall docs emconfig
+all: check-devices $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig
+
+.PHONY: exe
+exe: $(EXECUTABLE)
+
+.PHONY: build
+build: $(BINARY_CONTAINERS)
+
+# Building kernel
+
+# Building Host
+$(EXECUTABLE): check-xrt $(HOST_SRCS) $(HOST_HDRS)
+	$(CXX) $(CXXFLAGS) $(HOST_SRCS) $(HOST_HDRS) -o '$@' $(LDFLAGS)
+
+emconfig:$(EMCONFIG_DIR)/emconfig.json
+$(EMCONFIG_DIR)/emconfig.json:
+	emconfigutil --platform $(DEVICE) --od $(EMCONFIG_DIR)
+
+check: all
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
+	$(CP) $(EMCONFIG_DIR)/emconfig.json .
+	XCL_EMULATION_MODE=$(TARGET) ./$(EXECUTABLE)
+else
+	 ./$(EXECUTABLE)
+endif
+ifneq ($(TARGET),$(findstring $(TARGET), sw_emu))
+$(warning WARNING:Application supports only sw_emu TARGET. Please use the target for running the application)
+endif
+
+
+run_nimbix: all
+	$(COMMON_REPO)/utility/nimbix/run_nimbix.py $(EXECUTABLE) $(DSA)
+
+aws_build: check-aws_repo $(BINARY_CONTAINERS)
+	$(COMMON_REPO)/utility/aws/run_aws.py $(BINARY_CONTAINERS)
+
+# Cleaning stuff
+clean:
+	-$(RMDIR) $(EXECUTABLE) $(XCLBIN)/{*sw_emu*,*hw_emu*} 
+	-$(RMDIR) profile_* TempConfig system_estimate.xtxt *.rpt *.csv 
+	-$(RMDIR) src/*.ll _xocc_* .Xil emconfig.json dltmp* xmltmp* *.log *.jou *.wcfg *.wdb
+
+cleanall: clean
+	-$(RMDIR) $(XCLBIN)
+	-$(RMDIR) _x.*
 

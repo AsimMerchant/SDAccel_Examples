@@ -12,9 +12,8 @@
     "libs": [
         "xcl2"
     ],
-    "nboard":["xilinx:kcu1500:dynamic", "xilinx_kcu1500_dynamic_5_0"],
-    "em_cmd": "./host",
-    "hw_cmd": "../../../utility/nimbix/nimbix-run.py -- ./host",
+    "host_exe": "host",
+    "cmd_args": "BUILD/adder.xclbin",
     "containers" : [
         {
             "name" : "adder",
@@ -31,13 +30,6 @@
         {
             "group": "Xilinx",
             "url" : "http://www.xilinx.com"
-        }
-    ],
-    "revision" : [
-        {
-            "date" : "JAN2017",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
         }
     ]
 }

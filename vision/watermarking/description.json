@@ -4,17 +4,26 @@
     "overview": [
         "This is an optimized implementation of a watermarking application to add watermarking to images targeting execution on an SDAccel supported FPGA acceleration card."
     ],
-    "cmd_args": "PROJECT/data/inputImage.bmp PROJECT/data/golden.bmp",
-    "em_cmd": "./watermark data/inputImage.bmp ./data/golden.bmp",
-    "hw_cmd": "../../utility/nimbix/nimbix-run.py -- ./watermark data/inputImage.bmp ./data/golden.bmp",
+    "host_exe": "watermark",
+    "host_srcs": "src/watermarking.cpp",
+    "cmd_args": "BUILD/apply_watermark.xclbin PROJECT/data/inputImage.bmp PROJECT/data/golden.bmp",
+    "output_files": "output.bmp",        
+    "nboard": [
+        "xilinx_u50_xdma",
+	"xilinx_aws-vu9p-f1-04261818",
+        "xilinx:u50:xdma",
+        "xilinx:aws-vu9p-f1-04261818:dynamic"
+	
+    ],	
+    
     "libs": [
-        "xcl", 
+        "xcl2", 
         "bitmap"
     ], 
     "containers": [
         {
             "name": "apply_watermark", 
-            "ldclflags" : "--sp apply_watermark_1.m_axi_gmem0:bank0 --sp apply_watermark_1.m_axi_gmem1:bank1",
+            "ldclflags" : "--sp apply_watermark_1.m_axi_gmem0:DDR[0] --sp apply_watermark_1.m_axi_gmem1:DDR[1]",
             "accelerators": [
                 {
                     "name": "apply_watermark",
@@ -26,43 +35,17 @@
     ],
     "perf_fields": ["Board", "Image Size", "Frames / Second"],
     "performance": [
-        {
-            "system": "xilinx:adm-pcie-ku3:2ddr-xpr",
-            "constraint": "1024 x 768",
-            "metric": "2,658"
-        },
-        {
-            "system": "xilinx:xil-accel-rd-ku115:4ddr-xpr",
-            "constraint": "1024 x 768",
-            "metric": "3526"
-        }
+        [
+            "xilinx:adm-pcie-ku3:2ddr-xpr", "1024 x 768", "2,658"
+        ],
+        [
+            "xilinx:xil-accel-rd-ku115:4ddr-xpr", "1024 x 768", "3526"
+        ]
     ],
     "contributors": [
         {
             "group": "Xilinx",
             "url": "http://www.xilinx.com"
-        }
-    ],
-    "revision": [
-        {
-            "date": "FEB2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
-        },
-        {
-            "date": "JUL2016",
-            "version": "2.0",
-            "description": "Conversion to Makefile based compilation"
-        },
-        {
-            "date": "DEC2016",
-            "version": "3.0",
-            "description": "Update for SDAccel 2016.3"
-        },
-        {
-            "date": "MAR2017",
-            "version": "4.0",
-            "description": "Optimized Kernel using uint16 datawidth. Updated Host code to use xcl_wrapper APIs"
         }
     ]
 }

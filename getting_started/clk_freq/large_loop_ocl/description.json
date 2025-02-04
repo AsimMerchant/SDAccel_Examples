@@ -12,14 +12,18 @@
     "libs": [
         "xcl2"
     ],
-    "em_cmd": "./host",
-    "hw_cmd": "../../../utility/nimbix/nimbix-run.py -- ./host",
+    "nboard": [
+        "xilinx_u50_xdma",
+        "xilinx:u50:xdma"    
+    ],
+    "host_exe": "host",
+    "cmd_args": "BUILD/cnn_GOOD.xclbin BUILD/cnn_BAD.xclbin",
     "containers" : [
         {
             "name": "cnn_GOOD", 
             "accelerators": [
                 {
-                    "name": "cnn", 
+                    "name": "cnn_GOOD", 
                     "num_compute_units" : "4",
                     "location": "src/cnn_convolution.cl"
                 }
@@ -29,24 +33,23 @@
             "name": "cnn_BAD", 
             "accelerators": [
                 {
-                    "name": "cnn", 
+                    "name": "cnn_BAD", 
                     "location": "src/cnn_convolution_bad.cl"
                 }
             ]
         }
     ],
-
     "contributors" : [
         {
             "group": "Xilinx",
             "url" : "http://www.xilinx.com"
         }
     ],
-    "revision" : [
+    "testinfo": {
+        "level_up": [
         {
-            "date" : "DEC2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
+            "hw": "1"
         }
-    ]
+        ]
+    }
 }

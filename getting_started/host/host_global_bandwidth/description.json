@@ -7,17 +7,31 @@
     "os": [
         "Linux"
     ],
-    "em_cmd" : "./host_global",
-    "hw_cmd" : "../../../utility/nimbix/nimbix-run.py -- ./host_global",
+    "host_exe": "host_global",
+    "cmd_args": "BUILD/krnl_host_global.xclbin",
+    "output_files": "metric1.csv",
+      "nboard": [
+        "xilinx_u50_xdma",
+        "xilinx_u280-es1_xdma", 
+        "xilinx_aws-vu9p-f1-04261818",
+	"xilinx:u50:xdma", 
+        "xilinx:u280-es1:xdma", 
+        "xilinx:aws-vu9p-f1-04261818:dynamic"
+    ],  
     "libs": [
-        "xcl"
-    ], 
-    "accelerators": [
+        "xcl2"
+    ],
+    "containers": [
+    {
+       "name": "krnl_host_global",
+       "ldclflags" : "--sp bandwidth_1.m_axi_gmem0:DDR[0] --sp bandwidth_1.m_axi_gmem1:DDR[1]",
+       "accelerators": [
         {
-            "container": "krnl_host_global", 
             "name": "bandwidth", 
-            "location": "src/kernel.cl"
+            "location": "src/kernel.cpp"
         }
+       ]
+      }           
     ],
     "contributors" : [
         {
@@ -25,21 +39,5 @@
             "url" : "http://www.xilinx.com"
         }
     ],
-    "revision" : [
-        {
-            "date" : "FEB2016",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
-        },
-        {
-            "date" : "JUL2016",
-            "version": "2.0",
-            "description": "Conversion to Makefile based compilation"
-        },
-        {
-            "date" :"DEC2016",
-            "version": "3.0",
-            "description": "Update for SDAccel 2016.3"
-        }
-    ]
+    "match_ini": "false"
 }

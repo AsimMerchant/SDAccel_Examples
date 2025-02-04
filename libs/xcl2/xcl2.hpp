@@ -34,11 +34,21 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CL_HPP_TARGET_OPENCL_VERSION 120
 #define CL_HPP_MINIMUM_OPENCL_VERSION 120
 #define CL_HPP_ENABLE_PROGRAM_CONSTRUCTION_FROM_ARRAY_COMPATIBILITY 1
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
+//OCL_CHECK doesn't work if call has templatized function call
+#define OCL_CHECK(error,call)                                       \
+    call;                                                           \
+    if (error != CL_SUCCESS) {                                      \
+      printf("%s:%d Error calling " #call ", error code is: %d\n",  \
+              __FILE__,__LINE__, error);                            \
+      exit(EXIT_FAILURE);                                           \
+    }                                       
 
 #include <CL/cl2.hpp>
 #include <iostream>
 #include <fstream>
-
+#include <CL/cl_ext_xilinx.h>
 // When creating a buffer with user pointer (CL_MEM_USE_HOST_PTR), under the hood
 // User ptr is used if and only if it is properly aligned (page aligned). When not 
 // aligned, runtime has no choice but to create its own host side buffer that backs
@@ -66,44 +76,30 @@ struct aligned_allocator
 };
 
 namespace xcl {
-std::vector<cl::Device> get_xil_devices();
-std::vector<cl::Device> get_devices(const std::string& vendor_name);
-/* find_xclbin_file
- *
- *
- * Description:
- *   Find precompiled program (as commonly created by the Xilinx OpenCL
- *   flow). Using search path below.
- *
- *   Search Path:
- *      $XCL_BINDIR/<name>.<target>.<device>.xclbin
- *      $XCL_BINDIR/<name>.<target>.<device_versionless>.xclbin
- *      $XCL_BINDIR/binary_container_1.xclbin
- *      $XCL_BINDIR/<name>.xclbin
- *      xclbin/<name>.<target>.<device>.xclbin
- *      xclbin/<name>.<target>.<device_versionless>.xclbin
- *      xclbin/binary_container_1.xclbin
- *      xclbin/<name>.xclbin
- *      ../<name>.<target>.<device>.xclbin
- *      ../<name>.<target>.<device_versionless>.xclbin
- *      ../binary_container_1.xclbin
- *      ../<name>.xclbin
- *      ./<name>.<target>.<device>.xclbin
- *      ./<name>.<target>.<device_versionless>.xclbin
- *      ./binary_container_1.xclbin
- *      ./<name>.xclbin
- *
- * Inputs:
- *   _device_name - Targeted Device name
- *   xclbin_name - base name of the xclbin to import.
- *
- * Returns:
- *   An opencl program Binaries object that was created from xclbin_name file.
- */
-std::string find_binary_file(const std::string& _device_name, const std::string& xclbin_name);
-cl::Program::Binaries import_binary_file(std::string xclbin_file_name); 
-bool is_emulation () ;
-bool is_hw_emulation () ;
-bool is_xpr_device (const char *device_name);
-
+  std::vector<cl::Device> get_xil_devices();
+  std::vector<cl::Device> get_devices(const std::string& vendor_name);
+  std::vector<unsigned char> read_binary_file(const std::string &xclbin_file_name); 
+  bool is_emulation ();
+  bool is_hw_emulation ();
+  bool is_xpr_device (const char *device_name);
+    class Stream{
+      public:
+        static decltype(&clCreateStream) createStream;
+        static decltype(&clReleaseStream) releaseStream;
+        static decltype(&clReadStream) readStream;
+        static decltype(&clWriteStream) writeStream;
+        static decltype(&clPollStreams) pollStreams;
+        static void init(const cl_platform_id& platform) {
+            void *bar = clGetExtensionFunctionAddressForPlatform(platform, "clCreateStream");
+            createStream = (decltype(&clCreateStream))bar;
+            bar = clGetExtensionFunctionAddressForPlatform(platform, "clReleaseStream");
+            releaseStream = (decltype(&clReleaseStream))bar;
+            bar = clGetExtensionFunctionAddressForPlatform(platform, "clReadStream");
+            readStream = (decltype(&clReadStream))bar;
+            bar = clGetExtensionFunctionAddressForPlatform(platform, "clWriteStream");
+            writeStream = (decltype(&clWriteStream))bar;
+            bar = clGetExtensionFunctionAddressForPlatform(platform, "clPollStreams");
+            pollStreams = (decltype(&clPollStreams))bar;
+        }
+    };
 }

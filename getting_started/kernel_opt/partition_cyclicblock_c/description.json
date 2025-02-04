@@ -12,20 +12,23 @@
     "libs": [
         "xcl2"
     ],
-    "nboard":["xilinx:kcu1500:dynamic", "xilinx:vcu1525:dynamic", "xilinx_kcu1500_dynamic_5_0", "xilinx_vcu1525_dynamic_5_0"],
-    "em_cmd": "./array_partition",
-    "hw_cmd": "../../utility/nimbix/nimbix-run.py -- ./array_partition",
-    "accelerators": [
+    "host_exe": "array_partition",
+    "cmd_args": "BUILD/matmul.xclbin",
+    "output_files": "output.png",        
+    "containers": [
+    {
+        "name": "matmul",        
+        "accelerators": [
         {
-            "container": "matmul", 
             "name": "matmul_naive", 
             "location": "src/matmul.cpp"
         },
         {
-            "container": "matmul", 
             "name": "matmul_partition", 
             "location": "src/matmul_partition.cpp"
         }
+       ]
+     }
     ],
     "contributors" : [
         {
@@ -33,11 +36,11 @@
             "url" : "http://www.xilinx.com"
         }
     ],
-    "revision" : [
+    "testinfo": {
+        "level_up": [
         {
-            "date" : "MAY2017",
-            "version": "1.0",
-            "description": "Initial Xilinx Release"
+            "hw": "1"
         }
-    ]
+        ]
+    }
 }
